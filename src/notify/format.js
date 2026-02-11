@@ -23,45 +23,88 @@ function formatNumber(num, decimals = 2) {
 }
 
 /**
- * Generate reason bullets for the signal
+ * Calculate confidence level based on score
  */
-function generateReasons(signal, setup, htfBias, divergence, volumeRatio) {
-  const reasons = [];
+function getConfidenceLevel(score) {
+  if (score >= 85) return '🟢 RẤT CAO';
+  if (score >= 75) return '🟡 CAO';
+  if (score >= 65) return '🟠 TRUNG BÌNH';
+  return '🔴 THẤP';
+}
 
-  // HTF bias
+/**
+ * Generate reasons for entering trade in Vietnamese
+ */
+function generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio) {
+  const reasons = [];
+  
+  // HTF Bias analysis
   if (htfBias && htfBias.bias !== 'neutral') {
     const structures = htfBias.structures || {};
-    reasons.push(`HTF Bias: ${htfBias.bias.toUpperCase()} (1D: ${structures['1d'] || 'N/A'}, 4H: ${structures['4h'] || 'N/A'})`);
+    const biasVN = htfBias.bias === 'bullish' ? 'TĂNG' : 'GIẢM';
+    const d1 = structures['1d'] === 'up' ? 'tăng' : structures['1d'] === 'down' ? 'giảm' : 'ngang';
+    const h4 = structures['4h'] === 'up' ? 'tăng' : structures['4h'] === 'down' ? 'giảm' : 'ngang';
+    
+    if (htfBias.alignment) {
+      reasons.push(`✅ Xu hướng lớn ${biasVN} rõ ràng (1D ${d1}, 4H ${h4})`);
+    } else {
+      reasons.push(`⚠️ Xu hướng lớn ${biasVN} nhưng chưa đồng bộ hoàn toàn`);
+    }
   }
-
-  // Setup type
-  reasons.push(`Setup: ${setup.name || setup.type}`);
-
-  // Pattern
+  
+  // Pattern analysis
   if (setup.pattern) {
-    reasons.push(`Pattern: ${setup.pattern.name} (strength: ${formatNumber(setup.pattern.strength * 100, 0)}%)`);
+    const patternName = setup.pattern.name || 'Unknown';
+    const strength = Math.round(setup.pattern.strength * 100);
+    
+    let patternVN = patternName;
+    if (patternName.includes('Hammer')) patternVN = 'Búa (Hammer)';
+    else if (patternName.includes('Shooting Star')) patternVN = 'Sao Băng';
+    else if (patternName.includes('Engulfing')) patternVN = setup.pattern.type === 'bullish' ? 'Nhấn Chìm Tăng' : 'Nhấn Chìm Giảm';
+    else if (patternName.includes('Doji')) patternVN = 'Doji';
+    
+    reasons.push(`📊 Mô hình nến ${patternVN} (độ mạnh ${strength}%)`);
   }
-
-  // Volume
+  
+  // Setup type analysis
+  const setupType = setup.type || '';
+  if (setupType === 'reversal') {
+    const zoneType = setup.zone?.type === 'support' ? 'hỗ trợ' : 'kháng cự';
+    reasons.push(`🔄 Đảo chiều tại vùng ${zoneType} mạnh`);
+  } else if (setupType === 'breakout' || setupType === 'breakdown') {
+    if (setup.isTrue) {
+      reasons.push(`🚀 Breakout THẬT - có volume xác nhận mạnh`);
+    } else {
+      reasons.push(`⚠️ Breakout GIẢ - volume yếu, có thể trap`);
+    }
+  } else if (setupType === 'retest') {
+    reasons.push(`✅ Retest vùng đã vỡ - cơ hội vào lệnh tốt`);
+  } else if (setupType === 'false_breakout' || setupType === 'false_breakdown') {
+    reasons.push(`💡 Bẫy breakout giả - wick dài nhưng close lại trong vùng`);
+  }
+  
+  // Volume analysis
   if (volumeRatio) {
-    reasons.push(`Volume: ${formatNumber(volumeRatio, 2)}x average${setup.volumeSpike ? ' (SPIKE)' : ''}`);
+    if (volumeRatio > 2.0) {
+      reasons.push(`📈 Volume CỰC MẠNH (${formatNumber(volumeRatio, 1)}x TB) - tín hiệu rất tích cực`);
+    } else if (volumeRatio > 1.5) {
+      reasons.push(`📊 Volume tăng mạnh (${formatNumber(volumeRatio, 1)}x TB) - xác nhận tốt`);
+    } else if (volumeRatio < 0.8) {
+      reasons.push(`⚠️ Volume yếu (${formatNumber(volumeRatio, 1)}x TB) - cần thận trọng`);
+    }
   }
-
+  
   // RSI Divergence
   if (divergence && (divergence.bullish || divergence.bearish)) {
-    reasons.push(`RSI Divergence: ${divergence.description}`);
+    const divType = divergence.bullish ? 'Phân kỳ tăng' : 'Phân kỳ giảm';
+    reasons.push(`📉 ${divType} - tín hiệu đảo chiều mạnh`);
   }
-
-  // Zone info
-  if (setup.zone) {
-    reasons.push(`Zone: ${setup.zone.type} @ ${formatNumber(setup.zone.center, 2)}`);
-  }
-
+  
   return reasons;
 }
 
 /**
- * Format signal as Telegram message
+ * Format signal as Telegram message in Vietnamese
  * @param {Object} signal - Complete signal object
  * @returns {string} Formatted Markdown message
  */
@@ -80,52 +123,32 @@ function formatSignalMessage(signal) {
   } = signal;
 
   const sourceName = process.env.SOURCE_NAME || 'PA-Bot';
-  const tagline = process.env.TAGLINE || 'Price Action + Volume Analysis';
-
+  
   // Build the message
   let message = '';
 
-  // Header
-  message += `🚨 *${escapeMarkdown(side)} SIGNAL* 🚨\n\n`;
+  // Header with side
+  const sideVN = side === 'LONG' ? '🟢 MUA' : '🔴 BÁN';
+  const sideEmoji = side === 'LONG' ? '📈' : '📉';
+  message += `${sideEmoji} *TÍN HIỆU ${sideVN}* ${sideEmoji}\n`;
+  message += `*${escapeMarkdown(symbol)}* \\| ${escapeMarkdown(timeframe)}\n\n`;
 
-  // Main info table (monospace)
-  message += '```\n';
-  message += `Symbol:    ${symbol}\n`;
-  message += `Timeframe: ${timeframe}\n`;
-  message += `Side:      ${side}\n`;
-  message += `Score:     ${score}/100\n`;
-  message += '```\n\n';
-
-  // HTF Bias
-  if (htfBias && htfBias.bias !== 'neutral') {
-    const alignment = htfBias.alignment ? '✅' : '⚠️';
-    message += `${alignment} *HTF Bias:* ${escapeMarkdown(htfBias.bias.toUpperCase())}\n`;
-    const structures = htfBias.structures || {};
-    message += `  \\- 1D: ${escapeMarkdown(structures['1d'] || 'N/A')}, 4H: ${escapeMarkdown(structures['4h'] || 'N/A')}\n\n`;
-  }
-
-  // Zone and Setup
-  message += `📍 *Setup:* ${escapeMarkdown(setup.name || setup.type)}\n`;
-  if (setup.zone) {
-    message += `  \\- Zone: ${escapeMarkdown(setup.zone.type)} @ ${formatNumber(setup.zone.center, 2)}\n`;
-  }
-  message += '\n';
-
-  // Levels table (monospace)
+  // === KẾ HOẠCH GIAO DỊCH ===
+  message += `*━━━ KẾ HOẠCH GIAO DỊCH ━━━*\n`;
   message += '```\n';
   message += `Entry:  ${formatNumber(levels.entry, 8)}\n`;
   message += `SL:     ${formatNumber(levels.stopLoss, 8)}`;
-  
-  // Add SL zone info if available
   if (levels.slZone) {
-    message += ` (${levels.slZone.type})`;
+    const slZoneVN = levels.slZone.type === 'support' ? 'hỗ trợ' : 'kháng cự';
+    message += ` [${slZoneVN}]`;
   }
   message += '\n';
   
   // TP1
   message += `TP1:    ${formatNumber(levels.takeProfit1, 8)} (${formatNumber(levels.riskReward1, 1)}R)`;
   if (levels.tpZones && levels.tpZones[0]) {
-    message += ` [${levels.tpZones[0].type}]`;
+    const tp1ZoneVN = levels.tpZones[0].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
+    message += ` [${tp1ZoneVN}]`;
   }
   message += '\n';
   
@@ -133,49 +156,57 @@ function formatSignalMessage(signal) {
   if (levels.takeProfit2) {
     message += `TP2:    ${formatNumber(levels.takeProfit2, 8)} (${formatNumber(levels.riskReward2, 1)}R)`;
     if (levels.tpZones && levels.tpZones[1]) {
-      message += ` [${levels.tpZones[1].type}]`;
+      const tp2ZoneVN = levels.tpZones[1].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
+      message += ` [${tp2ZoneVN}]`;
     }
     message += '\n';
   }
   
+  // Add TP3 if available from tpZones
+  if (levels.tpZones && levels.tpZones[2]) {
+    const tp3 = levels.tpZones[2].center;
+    const tp3Distance = Math.abs(tp3 - levels.entry);
+    const risk = Math.abs(levels.entry - levels.stopLoss);
+    const tp3RR = tp3Distance / risk;
+    const tp3ZoneVN = levels.tpZones[2].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
+    message += `TP3:    ${formatNumber(tp3, 8)} (${formatNumber(tp3RR, 1)}R) [${tp3ZoneVN}]\n`;
+  }
+  
   message += '```\n\n';
 
-  // Volume
-  if (volumeRatio) {
-    const volumeEmoji = volumeRatio > 1.5 ? '📊' : '📉';
-    message += `${volumeEmoji} *Volume:* ${formatNumber(volumeRatio, 2)}x avg`;
-    if (setup.volumeSpike) {
-      message += ' ⚡ SPIKE';
-    }
-    message += '\n\n';
+  // === ĐỘ TIN CẬY ===
+  message += `*━━━ ĐỘ TIN CẬY ━━━*\n`;
+  message += `${getConfidenceLevel(score)} *${score}/100 điểm*\n\n`;
+  
+  // HTF Analysis
+  if (htfBias && htfBias.bias !== 'neutral') {
+    const structures = htfBias.structures || {};
+    const d1VN = structures['1d'] === 'up' ? '🟢 Tăng' : structures['1d'] === 'down' ? '🔴 Giảm' : '⚪ Ngang';
+    const h4VN = structures['4h'] === 'up' ? '🟢 Tăng' : structures['4h'] === 'down' ? '🔴 Giảm' : '⚪ Ngang';
+    const alignIcon = htfBias.alignment ? '✅' : '⚠️';
+    message += `${alignIcon} *Khung lớn:* 1D ${d1VN} \\| 4H ${h4VN}\n\n`;
   }
 
-  // RSI Divergence
-  if (divergence && (divergence.bullish || divergence.bearish)) {
-    message += `📈 *RSI Divergence:* ${escapeMarkdown(divergence.type || 'detected')}\n`;
-    if (divergence.description) {
-      message += `  \\- ${escapeMarkdown(divergence.description)}\n`;
-    }
-    message += '\n';
+  // === TẠI SAO VÀO KÈO ===
+  message += `*━━━ TẠI SAO VÀO KÈO ━━━*\n`;
+  const reasons = generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio);
+  for (const reason of reasons) {
+    message += `${escapeMarkdown(reason)}\n`;
   }
+  message += '\n';
 
-  // Reasons
-  const reasons = generateReasons(signal, setup, htfBias, divergence, volumeRatio);
-  if (reasons.length > 0) {
-    message += `*Key Points:*\n`;
-    for (const reason of reasons) {
-      message += `  • ${escapeMarkdown(reason)}\n`;
-    }
-    message += '\n';
-  }
-
-  // Timestamp
+  // Timestamp and footer
   const date = new Date(timestamp);
-  message += `🕐 ${escapeMarkdown(date.toISOString())}\n\n`;
-
-  // Footer
-  message += `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\n`;
-  message += `_${escapeMarkdown(sourceName)}_ \\| ${escapeMarkdown(tagline)}\n`;
+  const timeStr = date.toLocaleString('vi-VN', { 
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit', 
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  message += `🕐 ${escapeMarkdown(timeStr)}\n`;
+  message += `_${escapeMarkdown(sourceName)}_\n`;
 
   return message;
 }
@@ -191,5 +222,6 @@ module.exports = {
   formatSignalMessage,
   formatSimpleMessage,
   escapeMarkdown,
-  generateReasons
+  generateTradeReasons,
+  getConfidenceLevel
 };

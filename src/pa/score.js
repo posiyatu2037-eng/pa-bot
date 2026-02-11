@@ -227,8 +227,8 @@ function calculateLevels(setup, zoneSLBuffer = null) {
       stopLoss = entry * 0.99;
     }
 
-    // Find take profit zones (resistance zones above entry)
-    tpZones = findNextOpposingZones(entry, zones.resistance, 'LONG', 2);
+    // Find take profit zones (resistance zones above entry) - up to 3 targets
+    tpZones = findNextOpposingZones(entry, zones.resistance, 'LONG', 3);
     
     if (tpZones.length >= 2) {
       // Use zone centers as TP targets
@@ -265,8 +265,8 @@ function calculateLevels(setup, zoneSLBuffer = null) {
       stopLoss = entry * 1.01;
     }
 
-    // Find take profit zones (support zones below entry)
-    tpZones = findNextOpposingZones(entry, zones.support, 'SHORT', 2);
+    // Find take profit zones (support zones below entry) - up to 3 targets
+    tpZones = findNextOpposingZones(entry, zones.support, 'SHORT', 3);
     
     if (tpZones.length >= 2) {
       // Use zone centers as TP targets
