@@ -87,7 +87,7 @@ class PABot {
     this.rawSymbols = symbolsEnv.split(',').map(s => s.trim()).filter(s => s);
 
     // Parse timeframes
-    const timeframesEnv = process.env.TIMEFRAMES || '1d,4h,1h,15m';
+    const timeframesEnv = process.env.TIMEFRAMES || '1d,4h,1h';
     this.timeframes = timeframesEnv.split(',').map(tf => tf.trim()).filter(tf => tf);
 
     console.log('[Config] Symbols:', this.rawSymbols.join(', '));

@@ -161,19 +161,47 @@ function getCandleStrength(candle) {
   const range = candle.high - candle.low;
 
   if (range === 0) {
-    return { strength: 0, direction: 'neutral', isBullish: false, isBearish: false };
+    return { 
+      strength: 0, 
+      direction: 'neutral', 
+      isBullish: false, 
+      isBearish: false,
+      bodyPercent: 0,
+      closeLocation: 0.5,
+      rejection: null
+    };
   }
 
   const bodyPercent = (body / range) * 100;
   const isBullish = candle.close > candle.open;
   const isBearish = candle.close < candle.open;
+  
+  // Calculate close location within range (0 = low, 1 = high)
+  const closeLocation = (candle.close - candle.low) / range;
+  
+  // Assess rejection strength
+  const upperWick = candle.high - Math.max(candle.open, candle.close);
+  const lowerWick = Math.min(candle.open, candle.close) - candle.low;
+  const upperWickPercent = (upperWick / range) * 100;
+  const lowerWickPercent = (lowerWick / range) * 100;
+  
+  let rejection = null;
+  if (upperWickPercent > 40) {
+    rejection = { type: 'upside', strength: upperWickPercent / 100 };
+  } else if (lowerWickPercent > 40) {
+    rejection = { type: 'downside', strength: lowerWickPercent / 100 };
+  }
 
   return {
     strength: bodyPercent / 100,
     direction: isBullish ? 'bullish' : (isBearish ? 'bearish' : 'neutral'),
     isBullish,
     isBearish,
-    bodyPercent
+    bodyPercent,
+    closeLocation, // 0-1 where 0.5 is middle, >0.5 is upper half, <0.5 is lower half
+    upperWickPercent,
+    lowerWickPercent,
+    rejection
   };
 }
 

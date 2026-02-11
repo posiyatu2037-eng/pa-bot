@@ -54,8 +54,8 @@ nano .env  # or use your preferred editor
 # Symbols to monitor (comma-separated)
 SYMBOLS=BTCUSDT,ETHUSDT,BNBUSDT
 
-# Timeframes to monitor
-TIMEFRAMES=1d,4h,1h,15m
+# Timeframes to monitor (default: 1d,4h,1h for pro-grade PA)
+TIMEFRAMES=1d,4h,1h
 
 # Telegram Configuration
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
@@ -70,6 +70,10 @@ PIVOT_WINDOW=5
 ZONE_LOOKBACK=100
 ZONE_TOLERANCE_PCT=0.5
 VOLUME_SPIKE_THRESHOLD=1.5
+
+# Zone-based SL/TP Configuration
+ZONE_SL_BUFFER_PCT=0.2
+MIN_ZONES_REQUIRED=2
 
 # Application Settings
 DRY_RUN=false
@@ -97,13 +101,14 @@ LOG_LEVEL=info
 - Only active (TRADING status) symbols are validated
 - Invalid symbols are automatically filtered out
 
-### Timeframe Mode B (Default)
+### Timeframe Mode B (Default - Pro-Grade)
 
-Optimized for stability with higher timeframes:
-- **1d**: Daily trend analysis
-- **4h**: Major swing structure
-- **1h**: Entry confirmation
-- **15m**: Precise entry timing
+Optimized for stability with professional price action analysis:
+- **1d**: Daily trend analysis for HTF bias (Higher Timeframe context)
+- **4h**: Major swing structure and zone identification
+- **1h**: Primary entry/analysis timeframe
+
+**Note**: The 15m timeframe has been removed from the default configuration to focus on higher-quality, higher-timeframe setups that align with professional trading methodologies.
 
 ### Signal Scoring System (0-100)
 

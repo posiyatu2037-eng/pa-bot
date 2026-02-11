@@ -50,11 +50,11 @@ SIGNAL_COOLDOWN_MINUTES=120
 TIMEFRAMES=1d,4h,1h
 ```
 
-### Aggressive Settings (More Signals)
+### Aggressive Settings (More Signals - Add Lower Timeframes)
 ```env
 MIN_SIGNAL_SCORE=65
 SIGNAL_COOLDOWN_MINUTES=30
-TIMEFRAMES=1d,4h,1h,15m,5m
+TIMEFRAMES=1d,4h,1h,15m
 ```
 
 ### Gold Trading (XAUUSD)

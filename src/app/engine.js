@@ -21,6 +21,8 @@ class SignalEngine {
       volumeSpikeThreshold: parseFloat(process.env.VOLUME_SPIKE_THRESHOLD) || 1.5,
       minScore: parseInt(process.env.MIN_SIGNAL_SCORE) || 70,
       cooldownMinutes: parseInt(process.env.SIGNAL_COOLDOWN_MINUTES) || 60,
+      zoneSLBuffer: parseFloat(process.env.ZONE_SL_BUFFER_PCT) || 0.2,
+      minZonesRequired: parseInt(process.env.MIN_ZONES_REQUIRED) || 2,
       ...config
     };
 
@@ -81,8 +83,8 @@ class SignalEngine {
         return null;
       }
 
-      // 8. Calculate levels (entry, SL, TP)
-      const levels = calculateLevels(setup);
+      // 8. Calculate levels (entry, SL, TP) using zone-based approach
+      const levels = calculateLevels(setup, this.config.zoneSLBuffer);
 
       // 9. Check cooldown
       const zoneKey = setup.zone ? setup.zone.key : 'none';

@@ -4,7 +4,10 @@
 
 ### 1. Multi-Timeframe Analysis
 - **Supported Timeframes**: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d, 3d, 1w
-- **Default Mode B**: 1d, 4h, 1h, 15m (optimized for stability)
+- **Default Pro-Grade Mode**: 1d, 4h, 1h (optimized for higher-quality setups)
+  - **1d**: Higher timeframe bias determination
+  - **4h & 1h**: Primary analysis and entry timeframes
+  - **15m removed**: Focusing on higher timeframes reduces noise and improves signal quality
 - **HTF Bias**: Automatically analyzes 1d and 4h for trend direction
 - **Alignment Scoring**: Rewards signals that align with higher timeframes
 
@@ -27,13 +30,20 @@
 - Zone merging to reduce noise
 - Touch/retest detection
 - Tolerance-based proximity (default: 0.5%)
+- **Minimum zones validation**: Signals require sufficient zones (default: 2 minimum)
+- **Zone-based SL/TP**: Stop loss and take profit levels derived from actual support/resistance zones
 
-#### Candlestick Patterns
+#### Candlestick Patterns (Enhanced Pro-Grade Analysis)
 - **Pin Bar/Hammer**: Bullish reversal (long lower wick)
 - **Shooting Star**: Bearish reversal (long upper wick)
 - **Engulfing**: Two-candle reversal pattern
 - **Doji**: Indecision candle
 - Pattern strength calculation
+- **Advanced Candle Analysis**:
+  - Body vs wick ratio analysis
+  - Close location within range (0-1 scale)
+  - Rejection strength quantification
+  - Upper/lower wick percentage measurement
 
 ### 3. Setup Detection
 
@@ -58,13 +68,45 @@
 - Former support becomes resistance (SHORT)
 - Requires pattern confirmation
 
-### 4. Volume Analysis
+#### Zone Validation
+- All setups must have sufficient zones (minimum 2 by default)
+- If zones cannot be computed, signal is skipped with explicit log
+- Ensures all signals have valid support/resistance context
+
+### 4. Zone-Based SL/TP System
+
+#### Stop Loss Calculation
+- **LONG**: Finds nearest support zone below entry
+  - Places SL below the support zone with configurable buffer (default: 0.2%)
+  - Fallback to setup zone if no lower support found
+- **SHORT**: Finds nearest resistance zone above entry
+  - Places SL above the resistance zone with buffer
+  - Fallback to setup zone if no higher resistance found
+
+#### Take Profit Calculation
+- **LONG**: Finds next resistance zones above entry
+  - TP1: First resistance zone center
+  - TP2: Second resistance zone center (if available)
+  - Fallback to RR-based if insufficient zones
+- **SHORT**: Finds next support zones below entry
+  - TP1: First support zone center
+  - TP2: Second support zone center (if available)
+  - Fallback to RR-based if insufficient zones
+
+#### Benefits
+- Aligns with natural market structure
+- Takes profit at logical resistance/support
+- Reduces arbitrary percentage-based levels
+- Improves risk/reward by targeting real price levels
+- Telegram messages indicate zone-based targets with `[support]` or `[resistance]` labels
+
+### 5. Volume Analysis
 - Average volume calculation (20-period default)
 - Volume spike detection (>1.5x average by default)
 - Volume ratio included in signals
 - Critical for breakout validation
 
-### 5. Technical Indicators
+### 6. Technical Indicators
 
 #### RSI (Relative Strength Index)
 - 14-period default
@@ -77,7 +119,7 @@
 - Requires minimum 2 pivot points
 - Adds 10 points to signal score
 
-### 6. Signal Scoring System
+### 7. Signal Scoring System
 
 **Total: 100 Points**
 
@@ -94,6 +136,8 @@
 
 3. **Candle Strength (20 pts)**
    - Strong directional candle: 15-20 pts
+   - Close location bonus: +2 pts (upper 30% for longs, lower 30% for shorts)
+   - Rejection strength bonus: +3 pts (downside rejection for longs, upside for shorts)
    - Weak/opposite: 5-10 pts
 
 4. **Volume Context (15 pts)**
@@ -108,7 +152,7 @@
 
 **Default Minimum**: 70/100
 
-### 7. Cooldown & Deduplication
+### 8. Cooldown & Deduplication
 
 #### Cooldown Key
 Format: `{symbol}_{timeframe}_{side}_{zoneKey}`
@@ -122,7 +166,7 @@ Example: `BTCUSDT_1h_LONG_support_43000`
 - Per-zone tracking
 - Automatic cleanup of expired cooldowns
 
-### 8. Data Management
+### 9. Data Management
 
 #### Binance Integration
 - **REST API**: Initial historical data fetch (500 candles)
@@ -143,7 +187,7 @@ Example: `BTCUSDT_1h_LONG_support_43000`
 - XAUUSD → XAUUSDT mapping
 - Filters invalid symbols
 
-### 9. Database (SQLite)
+### 10. Database (SQLite)
 
 #### Signals Table
 Stores all sent signals with:
@@ -168,7 +212,7 @@ Tracks active cooldowns:
 - Signal history tracking
 - Statistics queries
 
-### 10. Telegram Integration
+### 11. Telegram Integration
 
 #### Message Format
 - Markdown V2 with proper escaping
@@ -189,7 +233,7 @@ Tracks active cooldowns:
 - Connection testing
 - Simple text messages for notifications
 
-### 11. Configuration
+### 12. Configuration
 
 #### Environment Variables
 All aspects configurable via .env:
@@ -197,7 +241,10 @@ All aspects configurable via .env:
 - Score thresholds
 - Cooldown periods
 - Pivot window
-- Zone parameters
+- Zone parameters (lookback, tolerance)
+- **Zone SL/TP settings**:
+  - `ZONE_SL_BUFFER_PCT`: Buffer beyond zones for stop loss (default: 0.2%)
+  - `MIN_ZONES_REQUIRED`: Minimum zones needed for signal generation (default: 2)
 - Volume thresholds
 - Database path
 - Telegram credentials
@@ -208,7 +255,7 @@ All aspects configurable via .env:
 - **Aggressive**: Lower threshold, shorter cooldown
 - **Balanced**: Default settings
 
-### 12. Operational Features
+### 13. Operational Features
 
 #### Startup
 - Environment validation
@@ -231,7 +278,7 @@ All aspects configurable via .env:
 - Signal history
 - Cooldown tracking
 
-### 13. Deployment Options
+### 14. Deployment Options
 
 #### Development
 - Direct Node.js execution
@@ -244,7 +291,7 @@ All aspects configurable via .env:
 - Log management
 - Auto-start on boot
 
-### 14. Security & Safety
+### 15. Security & Safety
 
 #### No Trading Execution
 - Alerts only - no automatic trades

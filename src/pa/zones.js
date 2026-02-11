@@ -153,11 +153,90 @@ function isRetesting(candles, zone, direction) {
   return false;
 }
 
+/**
+ * Find next opposing zones for take profit targets
+ * @param {number} entryPrice - Entry price
+ * @param {Array} zones - Array of opposing zones (resistance for longs, support for shorts)
+ * @param {string} side - 'LONG' or 'SHORT'
+ * @param {number} maxTargets - Maximum number of targets to return (default: 2)
+ * @returns {Array} Array of zone objects sorted by distance from entry
+ */
+function findNextOpposingZones(entryPrice, zones, side, maxTargets = 2) {
+  const opposingZones = [];
+  
+  for (const zone of zones) {
+    if (side === 'LONG') {
+      // For longs, find resistance zones above entry
+      if (zone.center > entryPrice) {
+        opposingZones.push({
+          ...zone,
+          distance: zone.center - entryPrice,
+          distancePercent: ((zone.center - entryPrice) / entryPrice) * 100
+        });
+      }
+    } else if (side === 'SHORT') {
+      // For shorts, find support zones below entry
+      if (zone.center < entryPrice) {
+        opposingZones.push({
+          ...zone,
+          distance: entryPrice - zone.center,
+          distancePercent: ((entryPrice - zone.center) / entryPrice) * 100
+        });
+      }
+    }
+  }
+  
+  // Sort by distance (closest first)
+  opposingZones.sort((a, b) => a.distance - b.distance);
+  
+  // Return up to maxTargets zones
+  return opposingZones.slice(0, maxTargets);
+}
+
+/**
+ * Find stop loss zone
+ * @param {number} entryPrice - Entry price
+ * @param {Array} zones - Array of zones (support for longs, resistance for shorts)
+ * @param {string} side - 'LONG' or 'SHORT'
+ * @returns {Object|null} Stop loss zone or null
+ */
+function findStopLossZone(entryPrice, zones, side) {
+  // Find the nearest zone in the opposite direction of trade
+  let slZone = null;
+  let minDistance = Infinity;
+  
+  for (const zone of zones) {
+    if (side === 'LONG') {
+      // For longs, find support zone below entry
+      if (zone.center < entryPrice) {
+        const distance = entryPrice - zone.center;
+        if (distance < minDistance) {
+          minDistance = distance;
+          slZone = zone;
+        }
+      }
+    } else if (side === 'SHORT') {
+      // For shorts, find resistance zone above entry
+      if (zone.center > entryPrice) {
+        const distance = zone.center - entryPrice;
+        if (distance < minDistance) {
+          minDistance = distance;
+          slZone = zone;
+        }
+      }
+    }
+  }
+  
+  return slZone;
+}
+
 module.exports = {
   buildZones,
   createZone,
   isTouchingZone,
   findNearestZone,
   isRetesting,
-  mergeNearbyZones
+  mergeNearbyZones,
+  findNextOpposingZones,
+  findStopLossZone
 };

@@ -1,5 +1,6 @@
 const { getCandleStrength } = require('./patterns');
 const { calculateAverageVolume } = require('./setups');
+const { findNextOpposingZones, findStopLossZone } = require('./zones');
 
 /**
  * Score a trading signal (0-100)
@@ -111,8 +112,30 @@ function calculateCandleScore(candles, side) {
   // Bonus for strong directional candle
   if (side === 'LONG' && strength.isBullish) {
     score += strength.strength * 10;
+    
+    // Additional bonus for strong close in upper part of range
+    if (strength.closeLocation > 0.7) {
+      score += 2;
+    }
+    
+    // Bonus for rejection of downside (hammer-like)
+    if (strength.rejection && strength.rejection.type === 'downside') {
+      score += strength.rejection.strength * 3;
+    }
+    
   } else if (side === 'SHORT' && strength.isBearish) {
     score += strength.strength * 10;
+    
+    // Additional bonus for strong close in lower part of range
+    if (strength.closeLocation < 0.3) {
+      score += 2;
+    }
+    
+    // Bonus for rejection of upside (shooting star-like)
+    if (strength.rejection && strength.rejection.type === 'upside') {
+      score += strength.rejection.strength * 3;
+    }
+    
   } else {
     // Candle not aligned with signal direction
     score -= 5;
@@ -171,38 +194,97 @@ function calculateDivergenceScore(divergence, side) {
 }
 
 /**
- * Calculate risk/reward levels
- * @param {Object} setup - Setup object
- * @param {number} atr - Average True Range (optional, for dynamic SL/TP)
- * @returns {Object} { entry, stopLoss, takeProfit1, takeProfit2, riskReward }
+ * Calculate risk/reward levels with zone-based SL/TP
+ * @param {Object} setup - Setup object with zones attached
+ * @param {number} zoneSLBuffer - Buffer percentage for stop loss beyond zone (default: 0.2%)
+ * @returns {Object} { entry, stopLoss, takeProfit1, takeProfit2, riskReward1, riskReward2, tpZones }
  */
-function calculateLevels(setup, atr = null) {
+function calculateLevels(setup, zoneSLBuffer = null) {
   const entry = setup.price;
+  const slBuffer = zoneSLBuffer || parseFloat(process.env.ZONE_SL_BUFFER_PCT) || 0.2;
+  
   let stopLoss, tp1, tp2;
+  let tpZones = [];
+  let slZone = null;
+
+  // Get zones from setup (should be attached during detection)
+  const zones = setup.zones || { support: [], resistance: [] };
 
   if (setup.side === 'LONG') {
-    // Stop loss below zone or recent low
-    if (setup.zone) {
-      stopLoss = setup.zone.lower * 0.998; // Slightly below zone
+    // Find stop loss zone below entry (support)
+    slZone = findStopLossZone(entry, zones.support, 'LONG');
+    
+    if (slZone) {
+      // Place SL below the support zone with buffer
+      const bufferAmount = slZone.lower * (slBuffer / 100);
+      stopLoss = slZone.lower - bufferAmount;
+    } else if (setup.zone) {
+      // Fallback: use setup zone
+      const bufferAmount = setup.zone.lower * (slBuffer / 100);
+      stopLoss = setup.zone.lower - bufferAmount;
     } else {
-      stopLoss = entry * 0.99; // 1% below entry
+      // Last resort: fixed percentage
+      stopLoss = entry * 0.99;
     }
 
-    const risk = entry - stopLoss;
-    tp1 = entry + risk * 1.5; // 1.5R
-    tp2 = entry + risk * 3.0; // 3R
+    // Find take profit zones (resistance zones above entry) - up to 3 targets
+    tpZones = findNextOpposingZones(entry, zones.resistance, 'LONG', 3);
+    
+    if (tpZones.length >= 2) {
+      // Use zone centers as TP targets
+      tp1 = tpZones[0].center;
+      tp2 = tpZones[1].center;
+    } else if (tpZones.length === 1) {
+      // Only one TP zone available
+      tp1 = tpZones[0].center;
+      // Calculate TP2 based on risk/reward from TP1
+      const risk = entry - stopLoss;
+      tp2 = entry + risk * 3.0; // 3R as fallback
+    } else {
+      // No TP zones available, use traditional RR-based approach
+      const risk = entry - stopLoss;
+      tp1 = entry + risk * 1.5;
+      tp2 = entry + risk * 3.0;
+      console.log('[Levels] No TP zones found for LONG, using RR-based targets');
+    }
 
   } else { // SHORT
-    // Stop loss above zone or recent high
-    if (setup.zone) {
-      stopLoss = setup.zone.upper * 1.002; // Slightly above zone
+    // Find stop loss zone above entry (resistance)
+    slZone = findStopLossZone(entry, zones.resistance, 'SHORT');
+    
+    if (slZone) {
+      // Place SL above the resistance zone with buffer
+      const bufferAmount = slZone.upper * (slBuffer / 100);
+      stopLoss = slZone.upper + bufferAmount;
+    } else if (setup.zone) {
+      // Fallback: use setup zone
+      const bufferAmount = setup.zone.upper * (slBuffer / 100);
+      stopLoss = setup.zone.upper + bufferAmount;
     } else {
-      stopLoss = entry * 1.01; // 1% above entry
+      // Last resort: fixed percentage
+      stopLoss = entry * 1.01;
     }
 
-    const risk = stopLoss - entry;
-    tp1 = entry - risk * 1.5; // 1.5R
-    tp2 = entry - risk * 3.0; // 3R
+    // Find take profit zones (support zones below entry) - up to 3 targets
+    tpZones = findNextOpposingZones(entry, zones.support, 'SHORT', 3);
+    
+    if (tpZones.length >= 2) {
+      // Use zone centers as TP targets
+      tp1 = tpZones[0].center;
+      tp2 = tpZones[1].center;
+    } else if (tpZones.length === 1) {
+      // Only one TP zone available
+      tp1 = tpZones[0].center;
+      // Calculate TP2 based on risk/reward from TP1
+      const risk = stopLoss - entry;
+      tp2 = entry - risk * 3.0; // 3R as fallback
+    } else {
+      // No TP zones available, use traditional RR-based approach
+      const risk = stopLoss - entry;
+      tp1 = entry - risk * 1.5;
+      tp2 = entry - risk * 3.0;
+      console.log('[Levels] No TP zones found for SHORT, using RR-based targets');
+    }
   }
 
   const risk = Math.abs(entry - stopLoss);
@@ -217,7 +299,9 @@ function calculateLevels(setup, atr = null) {
     takeProfit1: parseFloat(tp1.toFixed(8)),
     takeProfit2: parseFloat(tp2.toFixed(8)),
     riskReward1: parseFloat(rr1.toFixed(2)),
-    riskReward2: parseFloat(rr2.toFixed(2))
+    riskReward2: parseFloat(rr2.toFixed(2)),
+    slZone: slZone ? { center: slZone.center, type: slZone.type } : null,
+    tpZones: tpZones.map(z => ({ center: z.center, type: z.type, distancePercent: z.distancePercent }))
   };
 }
 

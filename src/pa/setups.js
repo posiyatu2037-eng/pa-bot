@@ -263,17 +263,35 @@ function detectSetup(candles, config = {}) {
     config.zoneTolerance || 0.5
   );
 
+  // Validate zones exist
+  const minZonesRequired = config.minZonesRequired || 2;
+  const totalZones = zones.support.length + zones.resistance.length;
+  
+  if (totalZones < minZonesRequired) {
+    console.log(`[Setup] Insufficient zones: ${totalZones} zones found, minimum ${minZonesRequired} required. Skipping signal.`);
+    return null;
+  }
+
   // Try reversal first
   let setup = detectReversalSetup(candles, zones, config);
-  if (setup) return setup;
+  if (setup) {
+    setup.zones = zones; // Attach all zones for SL/TP calculation
+    return setup;
+  }
 
   // Try breakout
   setup = detectBreakoutSetup(candles, zones, config);
-  if (setup) return setup;
+  if (setup) {
+    setup.zones = zones; // Attach all zones for SL/TP calculation
+    return setup;
+  }
 
   // Try retest
   setup = detectRetestSetup(candles, zones, config);
-  if (setup) return setup;
+  if (setup) {
+    setup.zones = zones; // Attach all zones for SL/TP calculation
+    return setup;
+  }
 
   return null;
 }
