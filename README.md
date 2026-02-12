@@ -61,6 +61,16 @@ TIMEFRAMES=1d,4h,1h
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 
+# Optional: Send to Telegram group (e.g., -1001234567890)
+TELEGRAM_GROUP_ID=
+
+# Optional: Enable startup/connection test messages (default: false)
+TELEGRAM_SEND_STARTUP=false
+TELEGRAM_SEND_CONNECTION_TEST=false
+
+# Optional: Customize signal source footer (default: "Posiya Tú zalo 0763888872")
+SIGNAL_SOURCE_TEXT=Posiya Tú zalo 0763888872
+
 # Signal Configuration
 SIGNAL_COOLDOWN_MINUTES=60
 MIN_SIGNAL_SCORE=70
@@ -92,6 +102,12 @@ LOG_LEVEL=info
    ```
 6. Look for `"chat":{"id":123456789}` in the response
 7. Add the chat ID to `.env` as `TELEGRAM_CHAT_ID`
+
+**Optional - Send to Group:**
+- Add your bot to a Telegram group
+- Get the group chat ID (usually starts with `-100`) from `/getUpdates`
+- Add it to `.env` as `TELEGRAM_GROUP_ID`
+- The bot will send signals to both private chat and group (duplicates are filtered)
 
 ## Configuration
 
@@ -157,6 +173,16 @@ DRY_RUN=true npm start
 
 Signals will be logged to console in formatted output.
 
+### Preview Telegram Messages
+
+Preview the formatted message output without running the full bot:
+
+```bash
+node scripts/preview-telegram-message.js
+```
+
+This script generates sample signals (LONG and SHORT) to show how messages will appear in Telegram with your current configuration (including custom `SIGNAL_SOURCE_TEXT` if set).
+
 ### Production with PM2
 
 Install PM2 globally:
@@ -220,28 +246,43 @@ pm2 save
 
 ## Signal Format
 
-Signals are sent to Telegram in this format:
+Signals are sent to Telegram with HTML formatting in a professional Vietnamese layout:
 
 ```
-🚨 LONG SIGNAL 🚨
+🟢 LONG | BTCUSDT | 4H
+Đảo chiều
+━━━━━━━━━━━━━━━━━━━━
 
-Symbol:    BTCUSDT
-Timeframe: 1h
-Side:      LONG
-Score:     85/100
+📋 KẾ HOẠCH GIAO DỊCH
+Entry: 42500.50000000
+SL: 42000.00000000 (1.18%)
+TP1: 43500.00000000 (2.35%) [2.0R]
+TP2: 44500.00000000 (4.70%) [4.0R]
+TP3: 45500.00000000 (7.06%) [6.0R]
 
-✅ HTF Bias: BULLISH
-  - 1D: up, 4H: up
+Risk/Reward: 2R | WR: 65% | EV: 1.30
 
-📍 Setup: Bullish Reversal at Support
-  - Zone: support @ 43250.50
+Điểm tín hiệu: 82/100
 
-Entry:  43300.00000000
-SL:     43100.00000000
-TP1:    43600.00000000 (1.5R)
-TP2:    43900.00000000 (3.0R)
+💡 Lý do vào kèo
+✅ Xu hướng lớn TĂNG rõ ràng (1D tăng, 4H tăng)
+✅ Mô hình nến Búa (Hammer) (độ mạnh 85%)
+✅ Đảo chiều tại vùng hỗ trợ mạnh
+✅ Volume CỰC MẠNH (2.3x TB) - tín hiệu rất tích cực
+✅ Phân kỳ tăng - tín hiệu đảo chiều mạnh
 
-📊 Volume: 1.85x avg ⚡ SPIKE
+━━━━━━━━━━━━━━━━━━━━
+🕐 13:53 12/02/2026
+📱 Posiya Tú zalo 0763888872
+```
+
+**Message Features:**
+- **Header**: Side (🟢 LONG / 🔴 SHORT), symbol, timeframe, setup type in Vietnamese
+- **Trade Plan**: Entry, SL, and up to 3 TPs with percentages and risk/reward ratios
+- **Metrics**: RR (Risk/Reward), WR (Win Rate), EV (Expected Value) when available
+- **Signal Score**: 0-100 score indicating signal quality
+- **Reasons**: Vietnamese bullet points explaining the trade setup
+- **Footer**: Timestamp and customizable source text (configurable via `SIGNAL_SOURCE_TEXT`)
 
 📈 RSI Divergence: bullish
   - Bullish divergence: Price LL @ 43150.20, RSI HL (32.45 > 28.30)
