@@ -187,6 +187,8 @@ function detectTweezerBottom(prevCandle, currentCandle) {
 function detectMorningStar(candles) {
   if (candles.length < 3) return { isMorningStar: false };
   
+  const EPSILON = 0.0001; // Small value to prevent division by zero
+  
   const first = candles[candles.length - 3];
   const second = candles[candles.length - 2];
   const third = candles[candles.length - 1];
@@ -209,7 +211,7 @@ function detectMorningStar(candles) {
       isMorningStar: true,
       type: 'bullish',
       name: 'Morning Star',
-      strength: thirdBody / (firstBody + 0.0001)
+      strength: thirdBody / (firstBody + EPSILON)
     };
   }
   
@@ -223,6 +225,8 @@ function detectMorningStar(candles) {
  */
 function detectEveningStar(candles) {
   if (candles.length < 3) return { isEveningStar: false };
+  
+  const EPSILON = 0.0001; // Small value to prevent division by zero
   
   const first = candles[candles.length - 3];
   const second = candles[candles.length - 2];
@@ -246,7 +250,7 @@ function detectEveningStar(candles) {
       isEveningStar: true,
       type: 'bearish',
       name: 'Evening Star',
-      strength: thirdBody / (firstBody + 0.0001)
+      strength: thirdBody / (firstBody + EPSILON)
     };
   }
   

@@ -160,7 +160,9 @@ function formatSignalMessage(signal) {
   message += `Entry:  ${formatNumber(levels.entry, 8)}\n`;
   
   // SL with distance
-  const slDistance = Math.abs((levels.stopLoss - levels.entry) / levels.entry * 100);
+  const slDistance = levels.entry > 0 
+    ? Math.abs((levels.stopLoss - levels.entry) / levels.entry * 100)
+    : 0;
   message += `SL:     ${formatNumber(levels.stopLoss, 8)} (-${formatNumber(slDistance, 2)}%)\n`;
   
   // TP levels

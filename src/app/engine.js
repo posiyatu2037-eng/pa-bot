@@ -20,6 +20,11 @@ class SignalEngine {
     // Get signal mode from env (pro or aggressive)
     const signalMode = (process.env.SIGNAL_MODE || 'pro').toLowerCase();
     
+    // Parse env vars once
+    const minScoreEnv = parseInt(process.env.MIN_SIGNAL_SCORE);
+    const cooldownEnv = parseInt(process.env.SIGNAL_COOLDOWN_MINUTES);
+    const minZonesEnv = parseInt(process.env.MIN_ZONES_REQUIRED);
+    
     // Base configuration
     const baseConfig = {
       pivotWindow: parseInt(process.env.PIVOT_WINDOW) || 5,
@@ -37,18 +42,18 @@ class SignalEngine {
     if (signalMode === 'aggressive') {
       this.config = {
         ...baseConfig,
-        minScore: parseInt(process.env.MIN_SIGNAL_SCORE) >= 0 ? parseInt(process.env.MIN_SIGNAL_SCORE) : 50,
-        cooldownMinutes: parseInt(process.env.SIGNAL_COOLDOWN_MINUTES) >= 0 ? parseInt(process.env.SIGNAL_COOLDOWN_MINUTES) : 30,
-        minZonesRequired: parseInt(process.env.MIN_ZONES_REQUIRED) >= 0 ? parseInt(process.env.MIN_ZONES_REQUIRED) : 0,
+        minScore: minScoreEnv >= 0 ? minScoreEnv : 50,
+        cooldownMinutes: cooldownEnv >= 0 ? cooldownEnv : 30,
+        minZonesRequired: minZonesEnv >= 0 ? minZonesEnv : 0,
         ...config
       };
     } else {
       // pro mode (default)
       this.config = {
         ...baseConfig,
-        minScore: parseInt(process.env.MIN_SIGNAL_SCORE) >= 0 ? parseInt(process.env.MIN_SIGNAL_SCORE) : 70,
-        cooldownMinutes: parseInt(process.env.SIGNAL_COOLDOWN_MINUTES) >= 0 ? parseInt(process.env.SIGNAL_COOLDOWN_MINUTES) : 60,
-        minZonesRequired: parseInt(process.env.MIN_ZONES_REQUIRED) >= 0 ? parseInt(process.env.MIN_ZONES_REQUIRED) : 2,
+        minScore: minScoreEnv >= 0 ? minScoreEnv : 70,
+        cooldownMinutes: cooldownEnv >= 0 ? cooldownEnv : 60,
+        minZonesRequired: minZonesEnv >= 0 ? minZonesEnv : 2,
         ...config
       };
     }
