@@ -8,9 +8,6 @@ const { initDatabase, cleanupExpiredCooldowns } = require('./store/db');
 const { initTelegram, testConnection, sendMessage } = require('./notify/telegram');
 const SignalEngine = require('./app/engine');
 
-/**
- * Main application entry point
- */
 class PABot {
   constructor() {
     this.symbols = [];
@@ -18,9 +15,6 @@ class PABot {
     this.engine = null;
   }
 
-  /**
-   * Initialize the application
-   */
   async init() {
     console.log('='.repeat(60));
     console.log('PA-Bot: Price Action + Volume Signal Bot');
@@ -28,19 +22,13 @@ class PABot {
     console.log();
 
     try {
-      // 1. Load configuration
       this.loadConfig();
 
-      // 2. Initialize database
       initDatabase();
-
-      // 3. Clean up expired cooldowns
       cleanupExpiredCooldowns();
 
-      // 4. Initialize Telegram
       initTelegram();
-      
-      // Test connection only if enabled
+
       const testConnectionEnabled = process.env.TELEGRAM_SEND_CONNECTION_TEST === 'true';
       if (testConnectionEnabled) {
         await testConnection();
@@ -48,28 +36,19 @@ class PABot {
         console.log('[Init] Telegram connection test disabled (TELEGRAM_SEND_CONNECTION_TEST not set to true)');
       }
 
-      // 5. Validate symbols
       console.log('[Init] Validating symbols...');
       this.symbols = await validateSymbols(this.rawSymbols);
       console.log('[Init] Validated symbols:', this.symbols.join(', '));
+      if (this.symbols.length === 0) throw new Error('No valid symbols to monitor');
 
-      if (this.symbols.length === 0) {
-        throw new Error('No valid symbols to monitor');
-      }
-
-      // 6. Initialize signal engine
       this.engine = new SignalEngine();
 
-      // 7. Fetch initial historical data
       await this.fetchInitialData();
 
-      // 8. Connect to WebSocket
       this.connectWebSocket();
 
-      // 9. Setup periodic cleanup
       this.setupCleanup();
 
-      // 10. Send startup notification only if enabled
       const startupNotificationEnabled = process.env.TELEGRAM_SEND_STARTUP === 'true';
       if (startupNotificationEnabled) {
         await this.sendStartupNotification();
@@ -82,7 +61,6 @@ class PABot {
       console.log('✅ PA-Bot started successfully!');
       console.log('='.repeat(60));
       console.log();
-
     } catch (err) {
       console.error('❌ Failed to initialize PA-Bot:', err.message);
       console.error(err.stack);
@@ -90,28 +68,23 @@ class PABot {
     }
   }
 
-  /**
-   * Load configuration from environment
-   */
   loadConfig() {
-    // Parse symbols
     const symbolsEnv = process.env.SYMBOLS || 'BTCUSDT,ETHUSDT';
-    this.rawSymbols = symbolsEnv.split(',').map(s => s.trim()).filter(s => s);
+    this.rawSymbols = symbolsEnv.split(',').map((s) => s.trim()).filter((s) => s);
 
-    // Parse timeframes
     const timeframesEnv = process.env.TIMEFRAMES || '1d,4h,1h';
-    this.timeframes = timeframesEnv.split(',').map(tf => tf.trim()).filter(tf => tf);
+    this.timeframes = timeframesEnv.split(',').map((tf) => tf.trim()).filter((tf) => tf);
 
     console.log('[Config] Symbols:', this.rawSymbols.join(', '));
     console.log('[Config] Timeframes:', this.timeframes.join(', '));
-    console.log('[Config] Min Score:', process.env.MIN_SIGNAL_SCORE || 70);
-    console.log('[Config] Cooldown:', process.env.SIGNAL_COOLDOWN_MINUTES || 60, 'minutes');
     console.log('[Config] DRY_RUN:', process.env.DRY_RUN === 'true' ? 'YES' : 'NO');
+
+    // ENTRY-only defaults (informational)
+    console.log('[Config] SIGNAL_STAGE_ENABLED:', process.env.SIGNAL_STAGE_ENABLED || 'entry');
+    console.log('[Config] ENTRY_TIMEFRAMES:', process.env.ENTRY_TIMEFRAMES || '1h');
+    console.log('[Config] HTF_TIMEFRAMES:', process.env.HTF_TIMEFRAMES || '4h,1d');
   }
 
-  /**
-   * Fetch initial historical klines data
-   */
   async fetchInitialData() {
     console.log('[Init] Fetching initial historical data...');
 
@@ -119,18 +92,10 @@ class PABot {
       for (const timeframe of this.timeframes) {
         try {
           console.log(`[Init] Fetching ${symbol} ${timeframe}...`);
-          
-          // Fetch last 500 candles
           const klines = await fetchKlines(symbol, timeframe, 500);
-          
-          // Initialize cache
           klinesCache.init(symbol, timeframe, klines);
-          
           console.log(`[Init] ✓ ${symbol} ${timeframe}: ${klines.length} candles`);
-          
-          // Small delay to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
+          await new Promise((resolve) => setTimeout(resolve, 100));
         } catch (err) {
           console.error(`[Init] ✗ Failed to fetch ${symbol} ${timeframe}:`, err.message);
         }
@@ -140,9 +105,6 @@ class PABot {
     console.log('[Init] Initial data fetch complete');
   }
 
-  /**
-   * Connect to Binance WebSocket
-   */
   connectWebSocket() {
     console.log('[Init] Connecting to Binance WebSocket...');
 
@@ -150,54 +112,38 @@ class PABot {
       this.symbols,
       this.timeframes,
       (symbol, timeframe, candle) => {
-        // Pass closed candle to engine
         this.engine.onCandleClosed(symbol, timeframe, candle);
       },
-      (symbol, timeframe, formingCandle) => {
-        // Pass forming candle to engine for intrabar analysis
-        this.engine.onIntrabarUpdate(symbol, timeframe, formingCandle);
-      }
+      // ENTRY-only: ignore intrabar callback to reduce CPU/network on VPS
+      null
     );
   }
 
-  /**
-   * Setup periodic cleanup tasks
-   */
   setupCleanup() {
-    // Clean up expired cooldowns every hour
     setInterval(() => {
       console.log('[Cleanup] Running periodic cleanup...');
       cleanupExpiredCooldowns();
     }, 60 * 60 * 1000);
   }
 
-  /**
-   * Send startup notification
-   */
   async sendStartupNotification() {
-    const message = `🚀 <b>PA-Bot Started</b>\n\n` +
+    const message =
+      `🚀 <b>PA-Bot Started</b>\n\n` +
       `Monitoring: ${this.symbols.length} symbols\n` +
       `Timeframes: ${this.timeframes.join(', ')}\n` +
-      `Min Score: ${process.env.MIN_SIGNAL_SCORE || 70}\n` +
+      `ENTRY Timeframes: ${process.env.ENTRY_TIMEFRAMES || '1h'}\n` +
+      `Min Score: ${process.env.ENTRY_SCORE_THRESHOLD || process.env.MIN_SIGNAL_SCORE || 70}\n` +
       `Cooldown: ${process.env.SIGNAL_COOLDOWN_MINUTES || 60}m`;
 
     await sendMessage(message);
   }
 
-  /**
-   * Graceful shutdown
-   */
   async shutdown() {
     console.log('\n[Shutdown] Shutting down PA-Bot...');
-
     try {
-      // Close WebSocket
       binanceWS.close();
-
-      // Close database
       const { closeDatabase } = require('./store/db');
       closeDatabase();
-
       console.log('[Shutdown] ✓ Shutdown complete');
       process.exit(0);
     } catch (err) {
@@ -207,14 +153,11 @@ class PABot {
   }
 }
 
-// Create and start the bot
 const bot = new PABot();
 
-// Handle shutdown signals
 process.on('SIGINT', () => bot.shutdown());
 process.on('SIGTERM', () => bot.shutdown());
 
-// Handle uncaught errors
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
   bot.shutdown();
@@ -224,8 +167,7 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-// Start the bot
-bot.init().catch(err => {
+bot.init().catch((err) => {
   console.error('Fatal error:', err);
   process.exit(1);
 });
