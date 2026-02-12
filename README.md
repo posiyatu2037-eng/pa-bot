@@ -6,16 +6,23 @@
 
 ## Features
 
-- 📊 **Multi-Timeframe Analysis**: Monitors 1d, 4h, 1h, and 15m timeframes (configurable)
-- 🎯 **Price Action Focus**: Swing/pivot detection, market structure analysis, support/resistance zones
+- 📊 **Multi-Timeframe Analysis**: Monitors 1d, 4h, 1h timeframes (configurable)
+- 🎯 **Advanced Price Action Engine**: 
+  - Market regime detection (trend/range/expansion) using ATR and structure
+  - BOS (Break of Structure) and CHoCH (Change of Character) detection
+  - Liquidity sweep detection for stop hunts and reversals
+  - Enhanced candlestick pattern library (tweezers, morning/evening star, inside bars, 2-bar reversals)
+  - Swing/pivot detection and market structure analysis
+  - Support/resistance zone building and validation
 - 📈 **Volume Analysis**: Volume spike detection and context analysis
 - 🔄 **RSI Divergence**: Detects bullish/bearish divergences at pivot points
 - 🎨 **Multiple Setup Types**: Reversals, breakouts, retests, and false breakout fades
 - ⚡ **Real-Time WebSocket**: Live data from Binance with auto-reconnect
-- 📱 **Telegram Alerts**: Formatted signals with all key information
+- 📱 **Professional Telegram Alerts**: Clean, HTML-formatted signals with structured reasoning
 - 🗄️ **SQLite Storage**: Persistent signal history and cooldown management
-- 🚫 **Deduplication**: Smart cooldown system to prevent spam
+- 🚫 **Smart Deduplication**: Configurable cooldown system to prevent spam
 - 🏆 **Signal Scoring**: 0-100 score based on multiple factors
+- ⚙️ **Flexible Configuration**: Pro/Aggressive modes with configurable filters
 
 ## Requirements
 
@@ -62,23 +69,40 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 
 # Signal Configuration
-SIGNAL_COOLDOWN_MINUTES=60
-MIN_SIGNAL_SCORE=70
+# Signal mode: 'pro' (default, strict filters) or 'aggressive' (relaxed filters)
+SIGNAL_MODE=pro
+SIGNAL_COOLDOWN_MINUTES=60  # Set to 0 to disable
+MIN_SIGNAL_SCORE=70          # Set to 0 to disable
 
 # Price Action Configuration
 PIVOT_WINDOW=5
 ZONE_LOOKBACK=100
 ZONE_TOLERANCE_PCT=0.5
 VOLUME_SPIKE_THRESHOLD=1.5
+ATR_PERIOD=14                # For regime detection
+SWEEP_LOOKBACK=5             # Liquidity sweep lookback
+STRUCTURE_LOOKBACK=3         # BOS/CHoCH lookback
 
 # Zone-based SL/TP Configuration
 ZONE_SL_BUFFER_PCT=0.2
-MIN_ZONES_REQUIRED=2
+MIN_ZONES_REQUIRED=2         # Set to 0 to allow signals without zones
 
 # Application Settings
 DRY_RUN=false
 LOG_LEVEL=info
 ```
+
+**Signal Mode Options:**
+
+- **`pro` (default)**: Strict filtering for high-quality signals
+  - Minimum score: 70
+  - Minimum zones: 2
+  - Cooldown: 60 minutes
+  
+- **`aggressive`**: Relaxed filtering for more signals
+  - Minimum score: 50
+  - Minimum zones: 0 (allows signals without zones)
+  - Cooldown: 30 minutes
 
 ### 4. Create a Telegram Bot
 
@@ -128,8 +152,43 @@ Signals are scored based on multiple factors:
 
 Prevents duplicate signals for the same setup:
 - **Key**: `symbol_timeframe_side_zoneKey`
-- **Default Duration**: 60 minutes (configurable)
+- **Default Duration**: 60 minutes (configurable, set to 0 to disable)
 - **Database**: Persistent across restarts
+
+## Upgrade Notes
+
+### New Features in Latest Version
+
+This version includes major enhancements to the price action engine and Telegram notifications:
+
+**Price Action Engine Upgrades:**
+- ✨ Market regime detection (trend/range/expansion) using ATR and structure analysis
+- ✨ BOS (Break of Structure) and CHoCH (Change of Character) detection for SMC-style analysis
+- ✨ Liquidity sweep detection to identify stop hunts and reversals
+- ✨ Enhanced candlestick patterns: tweezer top/bottom, morning/evening star, inside bar, 2-bar reversals
+- ✨ Configurable signal modes: `pro` (strict) and `aggressive` (relaxed)
+- ✨ Structured skip logging with clear reasons when signals are filtered
+
+**Telegram Notification Improvements:**
+- ✨ Switched from MarkdownV2 to HTML for cleaner formatting
+- ✨ Professional, minimal layout with reduced decorative characters
+- ✨ Clearer "Lý do vào kèo" (Reasons) section with regime, BOS/CHoCH, and sweep info
+- ✨ Better organized trade plan display
+
+**Configuration Changes:**
+- Add new environment variables (see `.env.example`):
+  - `SIGNAL_MODE` - Choose between `pro` and `aggressive` modes
+  - `ATR_PERIOD` - ATR period for regime detection (default: 14)
+  - `SWEEP_LOOKBACK` - Liquidity sweep lookback (default: 5)
+  - `STRUCTURE_LOOKBACK` - BOS/CHoCH lookback (default: 3)
+- Existing configs remain backward compatible
+- Set `MIN_SIGNAL_SCORE=0`, `MIN_ZONES_REQUIRED=0`, or `SIGNAL_COOLDOWN_MINUTES=0` to disable respective filters
+
+**For Existing Users:**
+1. Update your `.env` file with new variables from `.env.example`
+2. Choose your preferred `SIGNAL_MODE` (`pro` recommended for quality, `aggressive` for quantity)
+3. Adjust filter thresholds as needed
+4. Telegram messages will appear cleaner and more professional automatically
 
 ## Usage
 

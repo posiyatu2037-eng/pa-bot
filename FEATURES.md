@@ -38,12 +38,40 @@
 - **Shooting Star**: Bearish reversal (long upper wick)
 - **Engulfing**: Two-candle reversal pattern
 - **Doji**: Indecision candle
+- **Tweezer Top/Bottom**: Double top/bottom reversal patterns
+- **Morning/Evening Star**: Three-candle reversal formations
+- **Inside Bar**: Consolidation pattern signaling potential breakout
+- **2-Bar Reversal**: Key reversal after making new high/low
 - Pattern strength calculation
 - **Advanced Candle Analysis**:
   - Body vs wick ratio analysis
   - Close location within range (0-1 scale)
   - Rejection strength quantification
   - Upper/lower wick percentage measurement
+
+#### Market Regime Detection
+- **Trend Detection**: Identifies uptrend, downtrend using swing structure
+- **Range Detection**: Identifies sideways/consolidation periods
+- **Expansion Detection**: Detects high volatility periods using ATR
+- **ATR-Based Volatility**: Compares current ATR to historical ATR
+- **Slope Analysis**: Linear regression slope to confirm trend strength
+- **Confidence Score**: 0-1 score indicating regime confidence
+- Configurable ATR period (default: 14)
+
+#### Structure Events (SMC/ICT Style)
+- **BOS (Break of Structure)**: Detects trend continuation when price breaks last swing high (uptrend) or low (downtrend)
+- **CHoCH (Change of Character)**: Detects trend reversal when price breaks last swing low (uptrend) or high (downtrend)
+- Configurable structure lookback (default: 3 pivots)
+- Strength calculation based on breakout magnitude
+- Real-time event detection on candle close
+
+#### Liquidity Sweep Detection
+- **Swing High Sweep**: Wick above recent high, close back below (bearish)
+- **Swing Low Sweep**: Wick below recent low, close back above (bullish)
+- **Zone Boundary Sweep**: Sweeps of support/resistance zone boundaries
+- Stop hunt identification for reversal opportunities
+- Configurable sweep lookback (default: 5 recent swings)
+- Strength calculation based on wick size and close distance
 
 ### 3. Setup Detection
 
@@ -68,12 +96,37 @@
 - Former support becomes resistance (SHORT)
 - Requires pattern confirmation
 
-#### Zone Validation
-- All setups must have sufficient zones (minimum 2 by default)
-- If zones cannot be computed, signal is skipped with explicit log
-- Ensures all signals have valid support/resistance context
+#### Zone Validation (Configurable)
+- Configurable minimum zones required (default: 2, set to 0 to disable)
+- If `MIN_ZONES_REQUIRED <= 0`, allows signals without zones using fallback RR levels
+- Explicit structured logging when signals are skipped: `[Skip] <symbol> <tf>: reason=... details=...`
+- Ensures transparency when filters reject signals
 
-### 4. Zone-Based SL/TP System
+#### Setup Context Priority
+- **Context**: Market regime + HTF bias analyzed first
+- **Trigger**: Liquidity sweep + structure events + confirmation candle
+- **Validation**: Pattern strength + volume confirmation
+- Multi-layered approach ensures high-quality setups
+
+### 4. Signal Filtering & Modes
+
+#### Signal Modes
+- **Pro Mode** (default): Strict filters for high-quality signals
+  - Minimum score: 70
+  - Minimum zones: 2
+  - Cooldown: 60 minutes
+- **Aggressive Mode**: Relaxed filters for more signals
+  - Minimum score: 50
+  - Minimum zones: 0
+  - Cooldown: 30 minutes
+
+#### Configurable Filters
+- **Score Threshold**: Set `MIN_SIGNAL_SCORE <= 0` to disable
+- **Zone Requirement**: Set `MIN_ZONES_REQUIRED <= 0` to allow signals without zones
+- **Cooldown**: Set `SIGNAL_COOLDOWN_MINUTES <= 0` to disable
+- All filters log structured skip messages when they reject signals
+
+### 5. Zone-Based SL/TP System
 
 #### Stop Loss Calculation
 - **LONG**: Finds nearest support zone below entry
