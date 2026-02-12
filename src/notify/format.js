@@ -150,12 +150,16 @@ function generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio) {
 }
 
 /**
+
+ * Format signal as Telegram message in Vietnamese
+ * Supports both SETUP (early warning) and ENTRY (confirmed) stages
  * Format signal as Telegram message in Vietnamese with HTML
  * @param {Object} signal - Complete signal object
  * @returns {string} Formatted HTML message
  */
 function formatSignalMessage(signal) {
   const {
+    stage,
     symbol,
     timeframe,
     side,
@@ -165,14 +169,63 @@ function formatSignalMessage(signal) {
     htfBias,
     divergence,
     volumeRatio,
+    chaseEval,
     timestamp
   } = signal;
 
+  const sourceName = process.env.SOURCE_NAME || 'PA-Bot';
+  const isSetup = stage === 'SETUP';
+  const isEntry = stage === 'ENTRY';
   const sourceText = process.env.SIGNAL_SOURCE_TEXT || 'Posiya Tú zalo 0763888872';
   
   // Build the message with HTML
   let message = '';
 
+  // Header with side and stage
+  const sideVN = side === 'LONG' ? '🟢 MUA' : '🔴 BÁN';
+  const sideEmoji = side === 'LONG' ? '📈' : '📉';
+  
+  if (isSetup) {
+    message += `⚠️ *SETUP \\- CẢNH BÁO SỚM* ⚠️\n`;
+    message += `${sideEmoji} *Hướng: ${sideVN}* ${sideEmoji}\n`;
+  } else {
+    message += `${sideEmoji} *TÍN HIỆU ${sideVN}* ${sideEmoji}\n`;
+  }
+  
+  message += `*${escapeMarkdown(symbol)}* \\| ${escapeMarkdown(timeframe)}\n\n`;
+
+  // For SETUP: Show warning and setup description
+  if (isSetup) {
+    message += `*━━━ SETUP ĐANG HÌNH THÀNH ━━━*\n`;
+    message += `⏳ Setup: *${escapeMarkdown(setup.name)}*\n`;
+    message += `📊 Điểm: *${score}/100*\n`;
+    
+    if (levels) {
+      message += `💡 Entry dự kiến: ~${formatNumber(levels.entry, 8)}\n`;
+      message += `🛑 SL dự kiến: ~${formatNumber(levels.stopLoss, 8)}\n`;
+      message += `🎯 TP1 dự kiến: ~${formatNumber(levels.takeProfit1, 8)}\n`;
+    }
+    message += '\n';
+    message += `⚠️ *Chờ xác nhận trước khi vào lệnh\\!*\n\n`;
+  }
+
+  // For ENTRY: Show full trade plan
+  if (isEntry && levels) {
+    message += `*━━━ KẾ HOẠCH GIAO DỊCH ━━━*\n`;
+    message += '```\n';
+    message += `Entry:  ${formatNumber(levels.entry, 8)}\n`;
+    message += `SL:     ${formatNumber(levels.stopLoss, 8)}`;
+    if (levels.slZone) {
+      const slZoneVN = levels.slZone.type === 'support' ? 'hỗ trợ' : 'kháng cự';
+      message += ` [${slZoneVN}]`;
+    }
+    message += '\n';
+    
+    // TP1
+    message += `TP1:    ${formatNumber(levels.takeProfit1, 8)} (${formatNumber(levels.riskReward1, 1)}R)`;
+    if (levels.tpZones && levels.tpZones[0]) {
+      const tp1ZoneVN = levels.tpZones[0].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
+      message += ` [${tp1ZoneVN}]`;
   // === HEADER ===
   const sideVN = side === 'LONG' ? 'LONG' : 'SHORT';
   const sideEmoji = side === 'LONG' ? '🟢' : '🔴';
@@ -242,8 +295,35 @@ function formatSignalMessage(signal) {
       message += ` [${formatNumber(tp3RR, 1)}R]`;
       message += `\n`;
     }
+    message += '\n';
+    
+    // TP2 (if available)
+    if (levels.takeProfit2) {
+      message += `TP2:    ${formatNumber(levels.takeProfit2, 8)} (${formatNumber(levels.riskReward2, 1)}R)`;
+      if (levels.tpZones && levels.tpZones[1]) {
+        const tp2ZoneVN = levels.tpZones[1].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
+        message += ` [${tp2ZoneVN}]`;
+      }
+      message += '\n';
+    }
+    
+    // Add TP3 if available from tpZones
+    if (levels.tpZones && levels.tpZones[2]) {
+      const tp3 = levels.tpZones[2].center;
+      const tp3Distance = Math.abs(tp3 - levels.entry);
+      const risk = Math.abs(levels.entry - levels.stopLoss);
+      
+      // Validate risk is not zero to avoid division by zero
+      if (risk > 0) {
+        const tp3RR = tp3Distance / risk;
+        const tp3ZoneVN = levels.tpZones[2].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
+        message += `TP3:    ${formatNumber(tp3, 8)} (${formatNumber(tp3RR, 1)}R) [${tp3ZoneVN}]\n`;
+      }
+    }
+    
+    message += '```\n\n';
   }
-  
+
   message += `\n`;
 
   // === RR/WR/EV LINE ===
@@ -252,12 +332,24 @@ function formatSignalMessage(signal) {
   const ev = levels.expectedValue ? formatNumber(levels.expectedValue, 2) : '--';
   
   message += `<b>Risk/Reward:</b> ${mainRR}R | <b>WR:</b> ${wr} | <b>EV:</b> ${ev}\n\n`;
+      
+  // Anti-chase info for ENTRY signals
+  if (isEntry && chaseEval) {
+    if (chaseEval.decision === 'CHASE_OK') {
+      message += `✅ *Anti\\-Chase:* ${escapeMarkdown(chaseEval.reason)}\n\n`;
+    } else if (chaseEval.decision === 'REVERSAL_WATCH') {
+      message += `🔄 *Anti\\-Chase:* ${escapeMarkdown(chaseEval.reason)}\n\n`;
+    }
+  }
 
+  // === TẠI SAO VÀO KÈO ===
+  message += `*━━━ TẠI SAO VÀO KÈO ━━━*\n`;
   // === TRAILING NOTE (if score is displayed separately) ===
   message += `<b>Điểm tín hiệu:</b> ${score}/100\n\n`;
 
   // === REASONS SECTION ===
   message += `<b>💡 Lý do vào kèo</b>\n`;
+      
   const reasons = generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio);
   
   if (reasons.length > 0) {
@@ -283,6 +375,14 @@ function formatSignalMessage(signal) {
     year: 'numeric',
     hour12: false
   });
+  message += `🕐 ${escapeMarkdown(timeStr)}\n`;
+  
+  // Add stage indicator to footer
+  if (isSetup) {
+    message += `_${escapeMarkdown(sourceName)} \\- Setup Alert_\n`;
+  } else {
+    message += `_${escapeMarkdown(sourceName)}_\n`;
+  }
   
   const parts = dateFormatter.formatToParts(date);
   const getValue = (type) => parts.find(p => p.type === type)?.value || '';

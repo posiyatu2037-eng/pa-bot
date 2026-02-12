@@ -6,16 +6,47 @@
 
 ## Features
 
-- 📊 **Multi-Timeframe Analysis**: Monitors 1d, 4h, 1h, and 15m timeframes (configurable)
+### Core Features
+
+- 📊 **Multi-Timeframe Analysis**: Monitors 1d, 4h, 1h timeframes (configurable)
 - 🎯 **Price Action Focus**: Swing/pivot detection, market structure analysis, support/resistance zones
-- 📈 **Volume Analysis**: Volume spike detection and context analysis
-- 🔄 **RSI Divergence**: Detects bullish/bearish divergences at pivot points
+- 📈 **Volume Analysis**: Volume spike detection and climax identification
+- 🔄 **RSI Divergence**: Detects bullish/bearish divergences (bonus scoring)
 - 🎨 **Multiple Setup Types**: Reversals, breakouts, retests, and false breakout fades
 - ⚡ **Real-Time WebSocket**: Live data from Binance with auto-reconnect
 - 📱 **Telegram Alerts**: Formatted signals with all key information
 - 🗄️ **SQLite Storage**: Persistent signal history and cooldown management
 - 🚫 **Deduplication**: Smart cooldown system to prevent spam
-- 🏆 **Signal Scoring**: 0-100 score based on multiple factors
+- 🏆 **Signal Scoring**: 0-110 score based on multiple factors
+
+### NEW: Advanced Signal Engine
+
+- 🎚️ **Two-Stage Alerts**: 
+  - **SETUP**: Early warning when reversal/continuation setup is forming (intrabar detection)
+  - **ENTRY**: Confirmed signal with clear entry/SL/TP, ready for action
+- 🚦 **Anti-Chase Logic**: Prevents late entries with intelligent chase detection
+  - ATR-based distance checks
+  - Volume climax detection
+  - Momentum analysis
+  - Micro-structure analysis (CHoCH/BOS)
+- 🎭 **Enhanced Patterns**: 
+  - Pin bar (hammer/shooting star)
+  - Engulfing patterns
+  - Inside bar + break
+  - Morning/evening star
+  - Tweezer top/bottom
+  - Doji patterns
+- 📊 **Configurable Scoring**: 
+  - Separate thresholds for SETUP (50) and ENTRY (70)
+  - RSI divergence as bonus (not required)
+  - Price action and volume confirmation required
+- ✅ **Quality Filters**:
+  - Minimum R:R ratio (default 1.5)
+  - HTF alignment requirement for ENTRY
+  - Volume confirmation option
+- 📈 **Backtesting Tool**: Evaluate signal quality on historical data
+  - Per-symbol and per-timeframe reporting
+  - Win rate, avg R:R, and expectancy calculation
 
 ## Requirements
 
@@ -73,7 +104,25 @@ SIGNAL_SOURCE_TEXT=Posiya Tú zalo 0763888872
 
 # Signal Configuration
 SIGNAL_COOLDOWN_MINUTES=60
-MIN_SIGNAL_SCORE=70
+MIN_SIGNAL_SCORE=70  # Legacy, kept for backward compatibility
+
+# Two-Stage Alerts Configuration
+ENTRY_TIMEFRAMES=1h             # Timeframe(s) for entry signals
+HTF_TIMEFRAMES=4h,1d            # Higher timeframes for bias
+SIGNAL_STAGE_ENABLED=setup,entry  # Enable both stages
+SETUP_SCORE_THRESHOLD=50        # Score threshold for SETUP alerts
+ENTRY_SCORE_THRESHOLD=70        # Score threshold for ENTRY alerts
+
+# Risk & Quality Filters
+MIN_RR=1.5                      # Minimum risk-reward ratio
+
+# Anti-Chase Configuration
+ANTI_CHASE_MAX_ATR=2.0          # Max ATR multiple for chase detection
+ANTI_CHASE_MAX_PCT=3.0          # Max percentage move for chase detection
+
+# Scoring Configuration
+RSI_DIVERGENCE_BONUS=10         # Bonus points for RSI divergence
+REQUIRE_VOLUME_CONFIRMATION=true  # Require volume spike for ENTRY
 
 # Price Action Configuration
 PIVOT_WINDOW=5
@@ -126,19 +175,56 @@ Optimized for stability with professional price action analysis:
 
 **Note**: The 15m timeframe has been removed from the default configuration to focus on higher-quality, higher-timeframe setups that align with professional trading methodologies.
 
-### Signal Scoring System (0-100)
+### Signal Scoring System (0-110)
 
 Signals are scored based on multiple factors:
 
-| Factor | Max Points | Description |
-|--------|------------|-------------|
-| HTF Alignment | 30 | 1d & 4h structure alignment with signal direction |
-| Setup Quality | 25 | Reversal patterns, true breakouts, retests |
-| Candle Strength | 20 | Directional momentum of current candle |
-| Volume Context | 15 | Volume spike and comparison to average |
-| RSI Divergence | 10 | Bullish/bearish divergence confluence |
+| Factor | Max Points | Description | Required |
+|--------|------------|-------------|----------|
+| HTF Alignment | 30 | 1d & 4h structure alignment with signal direction | Yes |
+| Setup Quality | 30 | Reversal patterns, true breakouts, retests | Yes |
+| Candle Strength | 25 | Directional momentum of current candle | Yes |
+| Volume Context | 15 | Volume spike and comparison to average | Yes |
+| RSI Divergence | 10* | Bullish/bearish divergence confluence | Bonus |
 
-**Default Minimum Score**: 70/100
+**Score Thresholds:**
+- **SETUP Alert**: 50+ points (early warning, heads-up)
+- **ENTRY Signal**: 70+ points (confirmed, action-ready)
+- **Configurable**: Can adjust thresholds via SETUP_SCORE_THRESHOLD and ENTRY_SCORE_THRESHOLD
+
+*\*RSI divergence is a bonus, not required. Configurable via RSI_DIVERGENCE_BONUS (default: 10)*
+
+### Two-Stage Alert System
+
+**SETUP Stage (Intrabar Detection)**:
+- Detects forming setups in real-time
+- Lower score threshold (default 50)
+- Early warning before candle close
+- Allows preparation time
+- Does not require HTF alignment
+
+**ENTRY Stage (Confirmed)**:
+- Only after clear trigger/confirmation
+- Higher score threshold (default 70)
+- Includes entry/SL/TP levels
+- Requires HTF alignment
+- Anti-chase logic applied
+- Minimum R:R check (default 1.5)
+- Optional volume confirmation
+
+### Anti-Chase Logic
+
+Prevents late entries by evaluating:
+
+1. **Distance Checks**: Price movement vs ATR and percentage
+2. **Volume Analysis**: Spike vs climax detection
+3. **Momentum**: Consecutive candles and acceleration/slowdown
+4. **Micro-Structure**: CHoCH (Change of Character) and BOS (Break of Structure)
+
+**Chase Decisions**:
+- `CHASE_NO`: Skip signal (too extended, likely trap)
+- `CHASE_OK`: Allow entry (within acceptable range)
+- `REVERSAL_WATCH`: Trend exhaustion (watch for reversal)
 
 ### Cooldown System
 
@@ -244,11 +330,91 @@ pm2 save
    sudo journalctl -u pa-bot -f
    ```
 
-## Signal Format
+### Backtesting
+
+Run backtests to evaluate signal quality on historical data:
+
+```bash
+# Backtest single symbol, 30 days
+node scripts/backtest.js --symbol BTCUSDT --timeframe 1h --period 30d
+
+
+# Backtest multiple symbols, 7 days
+node scripts/backtest.js --symbols BTCUSDT,ETHUSDT --timeframe 1h --period 7d
 
 Signals are sent to Telegram with HTML formatting in a professional Vietnamese layout:
 
+# Use .env configuration
+node scripts/backtest.js --config --period 90d
+
+# Save report to file
+node scripts/backtest.js --symbol BTCUSDT --timeframe 1h --period 30d --output report.txt
+
+# Detailed output with signal logs
+node scripts/backtest.js --symbol BTCUSDT --timeframe 1h --period 7d --detailed
 ```
+
+
+**Backtest Output:**
+- Total signals generated
+- Number of trades (wins/losses)
+- Win rate percentage
+- Average risk:reward ratio
+- Expectancy (expected profit per trade)
+- Total P&L
+
+**Options:**
+- `--symbol <SYMBOL>` - Single symbol to backtest
+- `--symbols <SYMBOLS>` - Comma-separated list of symbols
+- `--timeframe <TF>` - Timeframe (e.g., 1h, 4h)
+- `--period <PERIOD>` - Period (e.g., 7d, 30d, 90d)
+- `--start <DATE>` - Start date (YYYY-MM-DD)
+- `--end <DATE>` - End date (YYYY-MM-DD)
+- `--config` - Use symbols/timeframes from .env
+- `--output <FILE>` - Save report to file
+- `--min-score <N>` - Minimum signal score threshold
+- `--detailed` - Show detailed signal logs
+
+## Signal Format
+
+### SETUP Alert (Early Warning)
+
+```
+⚠️ SETUP - CẢNH BÁO SỚM ⚠️
+📈 Hướng: 🟢 MUA 📈
+BTCUSDT | 1h
+
+━━━ SETUP ĐANG HÌNH THÀNH ━━━
+⏳ Setup: Bullish Reversal at Support
+📊 Điểm: 55/100
+💡 Entry dự kiến: ~43300.00
+🛑 SL dự kiến: ~43100.00
+🎯 TP1 dự kiến: ~43600.00
+
+⚠️ Chờ xác nhận trước khi vào lệnh!
+
+━━━ ĐỘ TIN CẬY ━━━
+🟡 CAO 55/100 điểm
+...
+```
+
+### ENTRY Signal (Confirmed)
+
+```
+📈 TÍN HIỆU 🟢 MUA 📈
+BTCUSDT | 1h
+
+━━━ KẾ HOẠCH GIAO DỊCH ━━━
+Entry:  43300.00000000
+SL:     43100.00000000
+TP1:    43600.00000000 (1.5R) [kháng cự]
+TP2:    43900.00000000 (3.0R) [kháng cự]
+
+━━━ ĐỘ TIN CẬY ━━━
+🟢 RẤT CAO 85/100 điểm
+
+✅ Khung lớn: 1D 🟢 Tăng | 4H 🟢 Tăng
+
 🟢 LONG | BTCUSDT | 4H
 Đảo chiều
 ━━━━━━━━━━━━━━━━━━━━
@@ -284,12 +450,9 @@ Risk/Reward: 2R | WR: 65% | EV: 1.30
 - **Reasons**: Vietnamese bullet points explaining the trade setup
 - **Footer**: Timestamp and customizable source text (configurable via `SIGNAL_SOURCE_TEXT`)
 
-📈 RSI Divergence: bullish
-  - Bullish divergence: Price LL @ 43150.20, RSI HL (32.45 > 28.30)
+✅ Anti-Chase: Good entry conditions
 
-Key Points:
-  • HTF Bias: BULLISH (1D: up, 4H: up)
-  • Setup: Bullish Reversal at Support
+━━━ TẠI SAO VÀO KÈO ━━━
   • Pattern: Hammer (strength: 75%)
   • Volume: 1.85x average (SPIKE)
   • RSI Divergence: Bullish divergence...

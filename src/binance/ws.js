@@ -5,6 +5,7 @@ const WS_BASE_URL = 'wss://fstream.binance.com';
 
 /**
  * WebSocket manager for Binance kline streams with auto-reconnect
+ * Supports both closed candle and intrabar (forming candle) callbacks
  */
 class BinanceWebSocket {
   constructor() {
@@ -17,6 +18,7 @@ class BinanceWebSocket {
     this.subscriptions = [];
     this.pingInterval = null;
     this.onCandleClosedCallback = null;
+    this.onIntrabarUpdateCallback = null;
   }
 
   /**
@@ -24,9 +26,11 @@ class BinanceWebSocket {
    * @param {Array<string>} symbols - Array of symbols to subscribe
    * @param {Array<string>} timeframes - Array of timeframes to subscribe
    * @param {Function} onCandleClosed - Callback when a candle closes
+   * @param {Function} onIntrabarUpdate - Optional callback for forming candle updates
    */
-  connect(symbols, timeframes, onCandleClosed) {
+  connect(symbols, timeframes, onCandleClosed, onIntrabarUpdate = null) {
     this.onCandleClosedCallback = onCandleClosed;
+    this.onIntrabarUpdateCallback = onIntrabarUpdate;
     
     // Build stream names: btcusdt@kline_1m/ethusdt@kline_1h
     const streams = [];
@@ -77,7 +81,7 @@ class BinanceWebSocket {
       this.stopPing();
       
       // Attempt to reconnect with exponential backoff
-      this.reconnect(symbols, timeframes, onCandleClosed);
+      this.reconnect(symbols, timeframes, onCandleClosed, onIntrabarUpdate);
     });
   }
 
@@ -86,12 +90,6 @@ class BinanceWebSocket {
    */
   handleKlineMessage(data) {
     const k = data.k;
-    
-    // Only process closed candles
-    if (!k.x) {
-      return;
-    }
-
     const symbol = data.s;
     const timeframe = k.i;
     
@@ -110,21 +108,30 @@ class BinanceWebSocket {
       isClosed: k.x
     };
 
-    // Update cache
-    klinesCache.updateCandle(symbol, timeframe, candle);
-    
-    console.log(`[WS] Closed candle: ${symbol} ${timeframe} @ ${candle.close}`);
-    
-    // Trigger callback
-    if (this.onCandleClosedCallback) {
-      this.onCandleClosedCallback(symbol, timeframe, candle);
+    if (k.x) {
+      // Closed candle
+      klinesCache.updateCandle(symbol, timeframe, candle);
+      console.log(`[WS] Closed candle: ${symbol} ${timeframe} @ ${candle.close}`);
+      
+      // Trigger closed candle callback
+      if (this.onCandleClosedCallback) {
+        this.onCandleClosedCallback(symbol, timeframe, candle);
+      }
+    } else {
+      // Forming candle (intrabar update)
+      klinesCache.updateFormingCandle(symbol, timeframe, candle);
+      
+      // Trigger intrabar callback (if registered)
+      if (this.onIntrabarUpdateCallback) {
+        this.onIntrabarUpdateCallback(symbol, timeframe, candle);
+      }
     }
   }
 
   /**
    * Reconnect with exponential backoff
    */
-  reconnect(symbols, timeframes, onCandleClosed) {
+  reconnect(symbols, timeframes, onCandleClosed, onIntrabarUpdate) {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('[WS] Max reconnection attempts reached. Please restart the application.');
       return;
@@ -135,7 +142,7 @@ class BinanceWebSocket {
     console.log(`[WS] Reconnecting in ${this.reconnectDelay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     
     setTimeout(() => {
-      this.connect(symbols, timeframes, onCandleClosed);
+      this.connect(symbols, timeframes, onCandleClosed, onIntrabarUpdate);
     }, this.reconnectDelay);
 
     // Exponential backoff: double the delay, up to max
