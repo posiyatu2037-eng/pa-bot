@@ -1,78 +1,58 @@
 /**
  * Format trading signals for Telegram messages
- * Uses Markdown with monospace tables
+ * Uses HTML for clean, professional formatting
  */
 
-/**
- * Escape special Markdown characters for Telegram
- * MarkdownV2 requires escaping: _ * [ ] ( ) ~ ` > # + - = | { } . !
- */
-function escapeMarkdown(text) {
-  if (typeof text !== 'string') {
-    text = String(text);
-  }
-  // Escape special characters for MarkdownV2
-  return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
-}
+const { getRegimeDisplayName } = require('../pa/regime');
 
 /**
  * Format a number for display
  */
 function formatNumber(num, decimals = 2) {
+  if (!isFinite(num)) return 'N/A';
   return num.toFixed(decimals);
-}
-
-/**
- * Calculate confidence level based on score
- */
-function getConfidenceLevel(score) {
-  if (score >= 85) return '🟢 RẤT CAO';
-  if (score >= 75) return '🟡 CAO';
-  if (score >= 65) return '🟠 TRUNG BÌNH';
-  return '🔴 THẤP';
 }
 
 /**
  * Pattern translation map for Vietnamese
  */
 const PATTERN_TRANSLATIONS = {
-  'Hammer': 'Búa (Hammer)',
+  'Hammer': 'Búa',
   'Shooting Star': 'Sao Băng',
   'Bullish Engulfing': 'Nhấn Chìm Tăng',
   'Bearish Engulfing': 'Nhấn Chìm Giảm',
-  'Doji': 'Doji'
+  'Doji': 'Doji',
+  'Tweezer Top': 'Tweezer Đỉnh',
+  'Tweezer Bottom': 'Tweezer Đáy',
+  'Morning Star': 'Sao Mai',
+  'Evening Star': 'Sao Hôm',
+  'Inside Bar': 'Inside Bar',
+  '2-Bar Reversal (Bullish)': 'Đảo Chiều 2 Nến (Tăng)',
+  '2-Bar Reversal (Bearish)': 'Đảo Chiều 2 Nến (Giảm)'
 };
 
 /**
  * Translate pattern name to Vietnamese
  */
-function translatePattern(patternName, patternType) {
-  // Check exact match first
-  if (PATTERN_TRANSLATIONS[patternName]) {
-    return PATTERN_TRANSLATIONS[patternName];
-  }
-  
-  // Check partial matches
-  if (patternName.includes('Hammer')) return PATTERN_TRANSLATIONS['Hammer'];
-  if (patternName.includes('Shooting Star')) return PATTERN_TRANSLATIONS['Shooting Star'];
-  if (patternName.includes('Engulfing')) {
-    return patternType === 'bullish' 
-      ? PATTERN_TRANSLATIONS['Bullish Engulfing'] 
-      : PATTERN_TRANSLATIONS['Bearish Engulfing'];
-  }
-  if (patternName.includes('Doji')) return PATTERN_TRANSLATIONS['Doji'];
-  
-  // Return original if no translation found
-  return patternName;
+function translatePattern(patternName) {
+  return PATTERN_TRANSLATIONS[patternName] || patternName;
 }
 
 /**
  * Generate reasons for entering trade in Vietnamese
  */
-function generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio) {
+function generateTradeReasons(signal) {
+  const { setup, htfBias, regime, structureEvent, sweep, divergence, volumeRatio } = signal;
   const reasons = [];
-  
-  // HTF Bias analysis
+
+  // 1. Market Regime
+  if (regime && regime.regime !== 'unknown') {
+    const regimeVN = getRegimeDisplayName(regime.regime);
+    const confidence = Math.round(regime.confidence * 100);
+    reasons.push(`✅ Thị trường: ${regimeVN} (độ tin cậy ${confidence}%)`);
+  }
+
+  // 2. HTF Bias
   if (htfBias && htfBias.bias !== 'neutral') {
     const structures = htfBias.structures || {};
     const biasVN = htfBias.bias === 'bullish' ? 'TĂNG' : 'GIẢM';
@@ -80,60 +60,78 @@ function generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio) {
     const h4 = structures['4h'] === 'up' ? 'tăng' : structures['4h'] === 'down' ? 'giảm' : 'ngang';
     
     if (htfBias.alignment) {
-      reasons.push(`✅ Xu hướng lớn ${biasVN} rõ ràng (1D ${d1}, 4H ${h4})`);
+      reasons.push(`✅ Xu hướng lớn ${biasVN} đồng bộ (1D ${d1}, 4H ${h4})`);
     } else {
-      reasons.push(`⚠️ Xu hướng lớn ${biasVN} nhưng chưa đồng bộ hoàn toàn`);
+      reasons.push(`✅ Xu hướng lớn ${biasVN} (1D ${d1}, 4H ${h4})`);
     }
   }
-  
-  // Pattern analysis
-  if (setup.pattern) {
-    const patternVN = translatePattern(setup.pattern.name || 'Unknown', setup.pattern.type);
-    const strength = Math.round(setup.pattern.strength * 100);
-    reasons.push(`📊 Mô hình nến ${patternVN} (độ mạnh ${strength}%)`);
+
+  // 3. Structure Event (BOS/CHoCH)
+  if (structureEvent) {
+    if (structureEvent.type === 'BOS') {
+      const direction = structureEvent.direction === 'bullish' ? 'tăng' : 'giảm';
+      reasons.push(`✅ BOS (Break of Structure) ${direction} - xác nhận xu hướng`);
+    } else if (structureEvent.type === 'CHoCH') {
+      const fromTo = structureEvent.direction === 'bullish' ? 'giảm → tăng' : 'tăng → giảm';
+      reasons.push(`✅ CHoCH (Change of Character) ${fromTo} - đảo chiều`);
+    }
   }
-  
-  // Setup type analysis
+
+  // 4. Liquidity Sweep
+  if (sweep && sweep.isCurrent) {
+    if (sweep.direction === 'bullish') {
+      reasons.push(`✅ Sweep thanh khoản dưới mức thấp - tín hiệu tăng`);
+    } else {
+      reasons.push(`✅ Sweep thanh khoản trên mức cao - tín hiệu giảm`);
+    }
+  }
+
+  // 5. Pattern analysis
+  if (setup.pattern) {
+    const patternVN = translatePattern(setup.pattern.name || 'Unknown');
+    const strength = Math.round((setup.pattern.strength || 0) * 100);
+    reasons.push(`✅ Mô hình nến: ${patternVN} (${strength}%)`);
+  }
+
+  // 6. Setup type analysis
   const setupType = setup.type || '';
   if (setupType === 'reversal') {
     const zoneType = setup.zone?.type === 'support' ? 'hỗ trợ' : 'kháng cự';
-    reasons.push(`🔄 Đảo chiều tại vùng ${zoneType} mạnh`);
+    reasons.push(`✅ Đảo chiều tại vùng ${zoneType}`);
   } else if (setupType === 'breakout' || setupType === 'breakdown') {
     if (setup.isTrue) {
-      reasons.push(`🚀 Breakout THẬT - có volume xác nhận mạnh`);
+      reasons.push(`✅ Breakout thật có volume xác nhận`);
     } else {
-      reasons.push(`⚠️ Breakout GIẢ - volume yếu, có thể trap`);
+      reasons.push(`✅ Breakout giả - cơ hội fade`);
     }
   } else if (setupType === 'retest') {
-    reasons.push(`✅ Retest vùng đã vỡ - cơ hội vào lệnh tốt`);
+    reasons.push(`✅ Retest vùng đã vỡ`);
   } else if (setupType === 'false_breakout' || setupType === 'false_breakdown') {
-    reasons.push(`💡 Bẫy breakout giả - wick dài nhưng close lại trong vùng`);
+    reasons.push(`✅ Bẫy breakout giả - wick dài`);
   }
-  
-  // Volume analysis
+
+  // 7. Volume analysis
   if (volumeRatio) {
     if (volumeRatio > 2.0) {
-      reasons.push(`📈 Volume CỰC MẠNH (${formatNumber(volumeRatio, 1)}x TB) - tín hiệu rất tích cực`);
+      reasons.push(`✅ Volume cực mạnh (${formatNumber(volumeRatio, 1)}x)`);
     } else if (volumeRatio > 1.5) {
-      reasons.push(`📊 Volume tăng mạnh (${formatNumber(volumeRatio, 1)}x TB) - xác nhận tốt`);
-    } else if (volumeRatio < 0.8) {
-      reasons.push(`⚠️ Volume yếu (${formatNumber(volumeRatio, 1)}x TB) - cần thận trọng`);
+      reasons.push(`✅ Volume tăng mạnh (${formatNumber(volumeRatio, 1)}x)`);
     }
   }
-  
-  // RSI Divergence
+
+  // 8. RSI Divergence
   if (divergence && (divergence.bullish || divergence.bearish)) {
     const divType = divergence.bullish ? 'Phân kỳ tăng' : 'Phân kỳ giảm';
-    reasons.push(`📉 ${divType} - tín hiệu đảo chiều mạnh`);
+    reasons.push(`✅ ${divType} (RSI)`);
   }
-  
+
   return reasons;
 }
 
 /**
- * Format signal as Telegram message in Vietnamese
+ * Format signal as Telegram message in Vietnamese using HTML
  * @param {Object} signal - Complete signal object
- * @returns {string} Formatted Markdown message
+ * @returns {string} Formatted HTML message
  */
 function formatSignalMessage(signal) {
   const {
@@ -142,91 +140,65 @@ function formatSignalMessage(signal) {
     side,
     score,
     levels,
-    setup,
-    htfBias,
-    divergence,
-    volumeRatio,
     timestamp
   } = signal;
 
   const sourceName = process.env.SOURCE_NAME || 'PA-Bot';
   
-  // Build the message
+  // Build the message using HTML
   let message = '';
 
-  // Header with side
-  const sideVN = side === 'LONG' ? '🟢 MUA' : '🔴 BÁN';
-  const sideEmoji = side === 'LONG' ? '📈' : '📉';
-  message += `${sideEmoji} *TÍN HIỆU ${sideVN}* ${sideEmoji}\n`;
-  message += `*${escapeMarkdown(symbol)}* \\| ${escapeMarkdown(timeframe)}\n\n`;
+  // === HEADER ===
+  const sideVN = side === 'LONG' ? 'MUA' : 'BÁN';
+  const sideEmoji = side === 'LONG' ? '🟢' : '🔴';
+  message += `${sideEmoji} <b>TÍN HIỆU ${sideVN}</b>\n`;
+  message += `<b>${symbol}</b> | ${timeframe}\n\n`;
 
-  // === KẾ HOẠCH GIAO DỊCH ===
-  message += `*━━━ KẾ HOẠCH GIAO DỊCH ━━━*\n`;
-  message += '```\n';
+  // === TRADE PLAN ===
+  message += `<b>📋 KẾ HOẠCH GIAO DỊCH</b>\n`;
+  message += `<code>`;
   message += `Entry:  ${formatNumber(levels.entry, 8)}\n`;
-  message += `SL:     ${formatNumber(levels.stopLoss, 8)}`;
-  if (levels.slZone) {
-    const slZoneVN = levels.slZone.type === 'support' ? 'hỗ trợ' : 'kháng cự';
-    message += ` [${slZoneVN}]`;
-  }
-  message += '\n';
   
-  // TP1
-  message += `TP1:    ${formatNumber(levels.takeProfit1, 8)} (${formatNumber(levels.riskReward1, 1)}R)`;
-  if (levels.tpZones && levels.tpZones[0]) {
-    const tp1ZoneVN = levels.tpZones[0].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
-    message += ` [${tp1ZoneVN}]`;
-  }
-  message += '\n';
+  // SL with distance
+  const slDistance = levels.entry > 0 
+    ? Math.abs((levels.stopLoss - levels.entry) / levels.entry * 100)
+    : 0;
+  message += `SL:     ${formatNumber(levels.stopLoss, 8)} (-${formatNumber(slDistance, 2)}%)\n`;
   
-  // TP2 (if available)
+  // TP levels
+  message += `TP1:    ${formatNumber(levels.takeProfit1, 8)} (${formatNumber(levels.riskReward1, 1)}R)\n`;
+  
   if (levels.takeProfit2) {
-    message += `TP2:    ${formatNumber(levels.takeProfit2, 8)} (${formatNumber(levels.riskReward2, 1)}R)`;
-    if (levels.tpZones && levels.tpZones[1]) {
-      const tp2ZoneVN = levels.tpZones[1].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
-      message += ` [${tp2ZoneVN}]`;
-    }
-    message += '\n';
+    message += `TP2:    ${formatNumber(levels.takeProfit2, 8)} (${formatNumber(levels.riskReward2, 1)}R)\n`;
   }
   
-  // Add TP3 if available from tpZones
+  // TP3 if available from tpZones
   if (levels.tpZones && levels.tpZones[2]) {
     const tp3 = levels.tpZones[2].center;
     const tp3Distance = Math.abs(tp3 - levels.entry);
     const risk = Math.abs(levels.entry - levels.stopLoss);
     
-    // Validate risk is not zero to avoid division by zero
-    if (risk > 0) {
+    if (risk > 0 && isFinite(tp3)) {
       const tp3RR = tp3Distance / risk;
-      const tp3ZoneVN = levels.tpZones[2].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
-      message += `TP3:    ${formatNumber(tp3, 8)} (${formatNumber(tp3RR, 1)}R) [${tp3ZoneVN}]\n`;
+      message += `TP3:    ${formatNumber(tp3, 8)} (${formatNumber(tp3RR, 1)}R)\n`;
     }
   }
   
-  message += '```\n\n';
+  message += `</code>\n`;
 
-  // === ĐỘ TIN CẬY ===
-  message += `*━━━ ĐỘ TIN CẬY ━━━*\n`;
-  message += `${getConfidenceLevel(score)} *${score}/100 điểm*\n\n`;
-  
-  // HTF Analysis
-  if (htfBias && htfBias.bias !== 'neutral') {
-    const structures = htfBias.structures || {};
-    const d1VN = structures['1d'] === 'up' ? '🟢 Tăng' : structures['1d'] === 'down' ? '🔴 Giảm' : '⚪ Ngang';
-    const h4VN = structures['4h'] === 'up' ? '🟢 Tăng' : structures['4h'] === 'down' ? '🔴 Giảm' : '⚪ Ngang';
-    const alignIcon = htfBias.alignment ? '✅' : '⚠️';
-    message += `${alignIcon} *Khung lớn:* 1D ${d1VN} \\| 4H ${h4VN}\n\n`;
-  }
+  // === CONFIDENCE/SCORE ===
+  const scoreIcon = score >= 85 ? '🟢' : score >= 70 ? '🟡' : score >= 60 ? '🟠' : '🔴';
+  message += `${scoreIcon} <b>Điểm số:</b> ${score}/100\n\n`;
 
-  // === TẠI SAO VÀO KÈO ===
-  message += `*━━━ TẠI SAO VÀO KÈO ━━━*\n`;
-  const reasons = generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio);
+  // === REASONS ===
+  message += `<b>💡 Lý do vào kèo</b>\n`;
+  const reasons = generateTradeReasons(signal);
   for (const reason of reasons) {
-    message += `${escapeMarkdown(reason)}\n`;
+    message += `${reason}\n`;
   }
-  message += '\n';
+  message += `\n`;
 
-  // Timestamp and footer
+  // === TIMESTAMP AND FOOTER ===
   const date = new Date(timestamp);
   const timezone = process.env.TELEGRAM_TIMEZONE || 'Asia/Ho_Chi_Minh';
   const timeStr = date.toLocaleString('vi-VN', { 
@@ -237,8 +209,8 @@ function formatSignalMessage(signal) {
     hour: '2-digit',
     minute: '2-digit'
   });
-  message += `🕐 ${escapeMarkdown(timeStr)}\n`;
-  message += `_${escapeMarkdown(sourceName)}_\n`;
+  message += `🕐 ${timeStr}\n`;
+  message += `<i>${sourceName}</i>`;
 
   return message;
 }
@@ -253,7 +225,7 @@ function formatSimpleMessage(signal) {
 module.exports = {
   formatSignalMessage,
   formatSimpleMessage,
-  escapeMarkdown,
   generateTradeReasons,
-  getConfidenceLevel
+  formatNumber
 };
+
