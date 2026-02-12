@@ -263,13 +263,18 @@ function detectSetup(candles, config = {}) {
     config.zoneTolerance || 0.5
   );
 
-  // Validate zones exist
-  const minZonesRequired = config.minZonesRequired || 2;
+  // Validate zones exist (configurable)
+  const minZonesRequired = config.minZonesRequired !== undefined ? config.minZonesRequired : 2;
   const totalZones = zones.support.length + zones.resistance.length;
   
-  if (totalZones < minZonesRequired) {
-    console.log(`[Setup] Insufficient zones: ${totalZones} zones found, minimum ${minZonesRequired} required. Skipping signal.`);
+  if (minZonesRequired > 0 && totalZones < minZonesRequired) {
+    console.log(`[Skip] Setup detection: reason=insufficient_zones, details=found ${totalZones} zones, required ${minZonesRequired} minimum`);
     return null;
+  }
+  
+  // Log warning if no zones but continuing (aggressive mode)
+  if (totalZones === 0 && minZonesRequired <= 0) {
+    console.log(`[Warning] No zones found but continuing due to minZonesRequired=${minZonesRequired}, will use fallback RR levels`);
   }
 
   // Try reversal first
