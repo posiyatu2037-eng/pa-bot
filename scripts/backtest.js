@@ -163,7 +163,7 @@ async function simulateSignals(symbol, timeframe, candles, engine, options) {
       signals.push(signal);
       
       if (options.detailed) {
-        console.log(`[Signal] ${symbol} ${timeframe} ${signal.side} @ ${signal.entry} | Score: ${signal.score}`);
+        console.log(`[Signal] ${symbol} ${timeframe} ${signal.side} @ ${signal.levels.entry} | Score: ${signal.score}`);
       }
     }
   }
@@ -193,10 +193,10 @@ function calculateMetrics(signals, candles, symbol, timeframe) {
     let hitTP1 = false;
     let hitTP2 = false;
     
-    const entry = signal.entry;
-    const sl = signal.stop_loss;
-    const tp1 = signal.take_profit1;
-    const tp2 = signal.take_profit2;
+    const entry = signal.levels.entry;
+    const sl = signal.levels.stopLoss;
+    const tp1 = signal.levels.takeProfit1;
+    const tp2 = signal.levels.takeProfit2;
     
     // Check each future candle for SL or TP hit
     for (const candle of futureCandles) {
@@ -238,12 +238,14 @@ function calculateMetrics(signals, candles, symbol, timeframe) {
       wins++;
       const reward = Math.abs(tp2 - entry);
       totalPnL += reward;
-      totalRR += signal.risk_reward * 2; // Approximate RR for TP2
+      const risk = Math.abs(entry - sl);
+      const rr2 = reward / risk;
+      totalRR += rr2;
     } else if (hitTP1) {
       wins++;
       const reward = Math.abs(tp1 - entry);
       totalPnL += reward;
-      totalRR += signal.risk_reward;
+      totalRR += signal.levels.riskReward1;
     }
     // If neither hit within available data, we don't count it
   }

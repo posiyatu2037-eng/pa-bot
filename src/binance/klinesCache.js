@@ -26,6 +26,7 @@ class KlinesCache {
   /**
    * Update cache with a new closed candle
    * Replaces the last candle if it has the same openTime, otherwise appends
+   * Note: This method also clears the forming candle when a new closed candle arrives
    */
   updateCandle(symbol, timeframe, newCandle) {
     if (!this.cache[symbol] || !this.cache[symbol][timeframe]) {

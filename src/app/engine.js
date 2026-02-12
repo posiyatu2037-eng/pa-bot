@@ -369,7 +369,8 @@ class SignalEngine {
       return;
     }
 
-    // Throttle intrabar updates (process every ~10 seconds to avoid spam)
+    // Throttle intrabar updates (configurable, default ~10 seconds)
+    const throttleMs = parseInt(process.env.INTRABAR_THROTTLE_MS) || 10000;
     const now = Date.now();
     const key = `${symbol}_${timeframe}`;
     
@@ -378,7 +379,7 @@ class SignalEngine {
     }
     
     const lastUpdate = this._lastIntrabarUpdate.get(key) || 0;
-    if (now - lastUpdate < 10000) {
+    if (now - lastUpdate < throttleMs) {
       return; // Skip, too frequent
     }
     

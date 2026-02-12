@@ -51,7 +51,7 @@ function calculateScore(setup, htfAlignment, candles, divergence, config = {}) {
   return {
     score: Math.round(score),
     breakdown,
-    maxScore: 100 + rsiBonus // Base 100 + RSI bonus
+    maxScore: 100 + rsiBonus // Base 100 (HTF:30 + Setup:30 + Candle:25 + Volume:15) + RSI bonus
   };
 }
 
