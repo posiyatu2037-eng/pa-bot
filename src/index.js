@@ -140,6 +140,10 @@ class PABot {
       (symbol, timeframe, candle) => {
         // Pass closed candle to engine
         this.engine.onCandleClosed(symbol, timeframe, candle);
+      },
+      (symbol, timeframe, formingCandle) => {
+        // Pass forming candle to engine for intrabar analysis
+        this.engine.onIntrabarUpdate(symbol, timeframe, formingCandle);
       }
     );
   }
