@@ -8,6 +8,10 @@ const { calculateScore, calculateLevels } = require('./src/pa/score');
 const { getCandleStrength, detectReversalPattern } = require('./src/pa/patterns');
 const { buildZones } = require('./src/pa/zones');
 const { analyzeMarketStructure, determineHTFBias } = require('./src/pa/structure');
+const { detectMarketRegime } = require('./src/pa/regime');
+const { detectStructureEvents } = require('./src/pa/events');
+const { detectRecentSweep } = require('./src/pa/liquidity');
+const { detectPivotHighs, detectPivotLows } = require('./src/pa/pivots');
 
 console.log('Testing core PA-Bot modules...\n');
 
@@ -98,6 +102,36 @@ try {
   console.log(`  Close location: ${(strength.closeLocation * 100).toFixed(1)}%`);
   if (strength.rejection) {
     console.log(`  Rejection: ${strength.rejection.type} (${(strength.rejection.strength * 100).toFixed(1)}%)`);
+  }
+  
+  // Test 8: Regime detection
+  console.log('\n✓ Test 8: Market Regime Detection');
+  const pivotHighs = detectPivotHighs(candles, 5);
+  const pivotLows = detectPivotLows(candles, 5);
+  const regime = detectMarketRegime(candles, pivotHighs, pivotLows, { atrPeriod: 14 });
+  console.log(`  Regime: ${regime.regime}`);
+  console.log(`  Confidence: ${(regime.confidence * 100).toFixed(1)}%`);
+  console.log(`  ATR: ${regime.atr.toFixed(2)}`);
+  
+  // Test 9: Structure events
+  console.log('\n✓ Test 9: Structure Events (BOS/CHoCH)');
+  const currentTrend = analyzeMarketStructure(candles, 5);
+  const structureEvent = detectStructureEvents(candles, pivotHighs, pivotLows, currentTrend, 3);
+  if (structureEvent) {
+    console.log(`  Event: ${structureEvent.type} (${structureEvent.direction})`);
+    console.log(`  Level: ${structureEvent.level.toFixed(2)}`);
+  } else {
+    console.log(`  No structure event detected`);
+  }
+  
+  // Test 10: Liquidity sweep
+  console.log('\n✓ Test 10: Liquidity Sweep Detection');
+  const sweep = detectRecentSweep(candles, pivotHighs, pivotLows, null, 5);
+  if (sweep) {
+    console.log(`  Sweep: ${sweep.direction} at ${sweep.level.toFixed(2)}`);
+    console.log(`  Strength: ${(sweep.strength * 100).toFixed(1)}%`);
+  } else {
+    console.log(`  No liquidity sweep detected`);
   }
   
   console.log('\n═══════════════════════════════════════');
