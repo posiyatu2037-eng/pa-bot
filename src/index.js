@@ -39,7 +39,14 @@ class PABot {
 
       // 4. Initialize Telegram
       initTelegram();
-      await testConnection();
+      
+      // Test connection only if enabled
+      const testConnectionEnabled = process.env.TELEGRAM_SEND_CONNECTION_TEST === 'true';
+      if (testConnectionEnabled) {
+        await testConnection();
+      } else {
+        console.log('[Init] Telegram connection test disabled (TELEGRAM_SEND_CONNECTION_TEST not set to true)');
+      }
 
       // 5. Validate symbols
       console.log('[Init] Validating symbols...');
@@ -62,8 +69,13 @@ class PABot {
       // 9. Setup periodic cleanup
       this.setupCleanup();
 
-      // 10. Send startup notification
-      await this.sendStartupNotification();
+      // 10. Send startup notification only if enabled
+      const startupNotificationEnabled = process.env.TELEGRAM_SEND_STARTUP === 'true';
+      if (startupNotificationEnabled) {
+        await this.sendStartupNotification();
+      } else {
+        console.log('[Init] Startup notification disabled (TELEGRAM_SEND_STARTUP not set to true)');
+      }
 
       console.log();
       console.log('='.repeat(60));
@@ -159,7 +171,7 @@ class PABot {
    * Send startup notification
    */
   async sendStartupNotification() {
-    const message = `🚀 *PA\\-Bot Started*\n\n` +
+    const message = `🚀 <b>PA-Bot Started</b>\n\n` +
       `Monitoring: ${this.symbols.length} symbols\n` +
       `Timeframes: ${this.timeframes.join(', ')}\n` +
       `Min Score: ${process.env.MIN_SIGNAL_SCORE || 70}\n` +

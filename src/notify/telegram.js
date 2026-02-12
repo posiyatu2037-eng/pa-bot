@@ -30,12 +30,28 @@ function initTelegram() {
 }
 
 /**
+ * Get unique list of chat IDs to send to
+ * @returns {string[]} Array of chat IDs
+ */
+function getChatIds() {
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const groupId = process.env.TELEGRAM_GROUP_ID;
+  
+  const ids = [chatId, groupId]
+    .filter(id => id && id.trim()) // Remove empty/null values
+    .map(id => id.trim());
+  
+  // Deduplicate
+  return [...new Set(ids)];
+}
+
+/**
  * Send a signal message to Telegram
  * @param {Object} signal - Signal object with all details
  * @returns {Promise<boolean>} Success status
  */
 async function sendSignal(signal) {
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const chatIds = getChatIds();
 
   // Format the message
   const message = formatSignalMessage(signal);
@@ -43,32 +59,36 @@ async function sendSignal(signal) {
   // If DRY_RUN, just log
   if (DRY_RUN || !bot) {
     console.log('\n' + '='.repeat(60));
-    console.log('[Telegram] DRY_RUN - Would send message:');
+    console.log('[Telegram] DRY_RUN - Would send message to:', chatIds.join(', '));
     console.log('='.repeat(60));
-    // Log a version without escaping for readability
-    console.log(message.replace(/\\/g, ''));
+    console.log(message);
     console.log('='.repeat(60) + '\n');
     return true;
   }
 
-  try {
-    await bot.sendMessage(chatId, message, {
-      parse_mode: 'MarkdownV2',
-      disable_web_page_preview: true
-    });
+  // Send to all targets
+  let success = true;
+  for (const chatId of chatIds) {
+    try {
+      await bot.sendMessage(chatId, message, {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true
+      });
 
-    console.log(`[Telegram] Successfully sent signal for ${signal.symbol} ${signal.timeframe}`);
-    return true;
+      console.log(`[Telegram] Successfully sent signal to ${chatId} for ${signal.symbol} ${signal.timeframe}`);
 
-  } catch (err) {
-    console.error('[Telegram] Error sending message:', err.message);
-    
-    // Log the message that failed for debugging
-    console.error('[Telegram] Failed message:');
-    console.error(message);
-    
-    return false;
+    } catch (err) {
+      console.error(`[Telegram] Error sending message to ${chatId}:`, err.message);
+      
+      // Log the message that failed for debugging
+      console.error('[Telegram] Failed message:');
+      console.error(message);
+      
+      success = false;
+    }
   }
+  
+  return success;
 }
 
 /**
@@ -77,22 +97,25 @@ async function sendSignal(signal) {
  * @returns {Promise<boolean>}
  */
 async function sendMessage(text) {
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const chatIds = getChatIds();
 
   if (DRY_RUN || !bot) {
-    console.log(`[Telegram] DRY_RUN - Would send: ${text}`);
+    console.log(`[Telegram] DRY_RUN - Would send to ${chatIds.join(', ')}: ${text}`);
     return true;
   }
 
-  try {
-    await bot.sendMessage(chatId, text, {
-      parse_mode: 'Markdown'
-    });
-    return true;
-  } catch (err) {
-    console.error('[Telegram] Error sending message:', err.message);
-    return false;
+  let success = true;
+  for (const chatId of chatIds) {
+    try {
+      await bot.sendMessage(chatId, text, {
+        parse_mode: 'HTML'
+      });
+    } catch (err) {
+      console.error(`[Telegram] Error sending message to ${chatId}:`, err.message);
+      success = false;
+    }
   }
+  return success;
 }
 
 /**

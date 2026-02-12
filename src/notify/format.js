@@ -1,35 +1,35 @@
 /**
  * Format trading signals for Telegram messages
- * Uses Markdown with monospace tables
+ * Uses HTML formatting
  */
 
 /**
- * Escape special Markdown characters for Telegram
- * MarkdownV2 requires escaping: _ * [ ] ( ) ~ ` > # + - = | { } . !
+ * Escape HTML special characters for Telegram
  */
-function escapeMarkdown(text) {
+function escapeHtml(text) {
   if (typeof text !== 'string') {
     text = String(text);
   }
-  // Escape special characters for MarkdownV2
-  return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /**
  * Format a number for display
  */
 function formatNumber(num, decimals = 2) {
+  if (typeof num !== 'number') return '--';
   return num.toFixed(decimals);
 }
 
 /**
- * Calculate confidence level based on score
+ * Calculate percentage change
  */
-function getConfidenceLevel(score) {
-  if (score >= 85) return '🟢 RẤT CAO';
-  if (score >= 75) return '🟡 CAO';
-  if (score >= 65) return '🟠 TRUNG BÌNH';
-  return '🔴 THẤP';
+function calculatePercent(from, to) {
+  if (!from || !to) return null;
+  return ((to - from) / from * 100);
 }
 
 /**
@@ -47,6 +47,8 @@ const PATTERN_TRANSLATIONS = {
  * Translate pattern name to Vietnamese
  */
 function translatePattern(patternName, patternType) {
+  if (!patternName) return 'Không xác định';
+  
   // Check exact match first
   if (PATTERN_TRANSLATIONS[patternName]) {
     return PATTERN_TRANSLATIONS[patternName];
@@ -67,6 +69,23 @@ function translatePattern(patternName, patternType) {
 }
 
 /**
+ * Get setup name in Vietnamese
+ */
+function getSetupNameVN(setup) {
+  if (!setup || !setup.type) return 'Không xác định';
+  
+  const setupType = setup.type.toLowerCase();
+  
+  if (setupType === 'reversal') return 'Đảo chiều';
+  if (setupType === 'breakout') return 'Vượt vùng';
+  if (setupType === 'breakdown') return 'Vượt vùng xuống';
+  if (setupType === 'retest') return 'Test lại';
+  if (setupType === 'false_breakout' || setupType === 'false_breakdown') return 'Bẫy BO';
+  
+  return setup.type;
+}
+
+/**
  * Generate reasons for entering trade in Vietnamese
  */
 function generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio) {
@@ -80,60 +99,60 @@ function generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio) {
     const h4 = structures['4h'] === 'up' ? 'tăng' : structures['4h'] === 'down' ? 'giảm' : 'ngang';
     
     if (htfBias.alignment) {
-      reasons.push(`✅ Xu hướng lớn ${biasVN} rõ ràng (1D ${d1}, 4H ${h4})`);
+      reasons.push(`Xu hướng lớn ${biasVN} rõ ràng (1D ${d1}, 4H ${h4})`);
     } else {
-      reasons.push(`⚠️ Xu hướng lớn ${biasVN} nhưng chưa đồng bộ hoàn toàn`);
+      reasons.push(`Xu hướng lớn ${biasVN} nhưng chưa đồng bộ hoàn toàn`);
     }
   }
   
   // Pattern analysis
-  if (setup.pattern) {
+  if (setup && setup.pattern) {
     const patternVN = translatePattern(setup.pattern.name || 'Unknown', setup.pattern.type);
-    const strength = Math.round(setup.pattern.strength * 100);
-    reasons.push(`📊 Mô hình nến ${patternVN} (độ mạnh ${strength}%)`);
+    const strength = Math.round((setup.pattern.strength || 0) * 100);
+    reasons.push(`Mô hình nến ${patternVN} (độ mạnh ${strength}%)`);
   }
   
   // Setup type analysis
-  const setupType = setup.type || '';
+  const setupType = setup ? setup.type : '';
   if (setupType === 'reversal') {
     const zoneType = setup.zone?.type === 'support' ? 'hỗ trợ' : 'kháng cự';
-    reasons.push(`🔄 Đảo chiều tại vùng ${zoneType} mạnh`);
+    reasons.push(`Đảo chiều tại vùng ${zoneType} mạnh`);
   } else if (setupType === 'breakout' || setupType === 'breakdown') {
     if (setup.isTrue) {
-      reasons.push(`🚀 Breakout THẬT - có volume xác nhận mạnh`);
+      reasons.push(`Breakout THẬT - có volume xác nhận mạnh`);
     } else {
-      reasons.push(`⚠️ Breakout GIẢ - volume yếu, có thể trap`);
+      reasons.push(`Breakout GIẢ - volume yếu, có thể trap`);
     }
   } else if (setupType === 'retest') {
-    reasons.push(`✅ Retest vùng đã vỡ - cơ hội vào lệnh tốt`);
+    reasons.push(`Retest vùng đã vỡ - cơ hội vào lệnh tốt`);
   } else if (setupType === 'false_breakout' || setupType === 'false_breakdown') {
-    reasons.push(`💡 Bẫy breakout giả - wick dài nhưng close lại trong vùng`);
+    reasons.push(`Bẫy breakout giả - wick dài nhưng close lại trong vùng`);
   }
   
   // Volume analysis
   if (volumeRatio) {
     if (volumeRatio > 2.0) {
-      reasons.push(`📈 Volume CỰC MẠNH (${formatNumber(volumeRatio, 1)}x TB) - tín hiệu rất tích cực`);
+      reasons.push(`Volume CỰC MẠNH (${formatNumber(volumeRatio, 1)}x TB) - tín hiệu rất tích cực`);
     } else if (volumeRatio > 1.5) {
-      reasons.push(`📊 Volume tăng mạnh (${formatNumber(volumeRatio, 1)}x TB) - xác nhận tốt`);
+      reasons.push(`Volume tăng mạnh (${formatNumber(volumeRatio, 1)}x TB) - xác nhận tốt`);
     } else if (volumeRatio < 0.8) {
-      reasons.push(`⚠️ Volume yếu (${formatNumber(volumeRatio, 1)}x TB) - cần thận trọng`);
+      reasons.push(`Volume yếu (${formatNumber(volumeRatio, 1)}x TB) - cần thận trọng`);
     }
   }
   
   // RSI Divergence
   if (divergence && (divergence.bullish || divergence.bearish)) {
     const divType = divergence.bullish ? 'Phân kỳ tăng' : 'Phân kỳ giảm';
-    reasons.push(`📉 ${divType} - tín hiệu đảo chiều mạnh`);
+    reasons.push(`${divType} - tín hiệu đảo chiều mạnh`);
   }
   
   return reasons;
 }
 
 /**
- * Format signal as Telegram message in Vietnamese
+ * Format signal as Telegram message in Vietnamese with HTML
  * @param {Object} signal - Complete signal object
- * @returns {string} Formatted Markdown message
+ * @returns {string} Formatted HTML message
  */
 function formatSignalMessage(signal) {
   const {
@@ -149,96 +168,123 @@ function formatSignalMessage(signal) {
     timestamp
   } = signal;
 
-  const sourceName = process.env.SOURCE_NAME || 'PA-Bot';
+  const sourceText = process.env.SIGNAL_SOURCE_TEXT || 'Posiya Tú zalo 0763888872';
   
-  // Build the message
+  // Build the message with HTML
   let message = '';
 
-  // Header with side
-  const sideVN = side === 'LONG' ? '🟢 MUA' : '🔴 BÁN';
-  const sideEmoji = side === 'LONG' ? '📈' : '📉';
-  message += `${sideEmoji} *TÍN HIỆU ${sideVN}* ${sideEmoji}\n`;
-  message += `*${escapeMarkdown(symbol)}* \\| ${escapeMarkdown(timeframe)}\n\n`;
-
-  // === KẾ HOẠCH GIAO DỊCH ===
-  message += `*━━━ KẾ HOẠCH GIAO DỊCH ━━━*\n`;
-  message += '```\n';
-  message += `Entry:  ${formatNumber(levels.entry, 8)}\n`;
-  message += `SL:     ${formatNumber(levels.stopLoss, 8)}`;
-  if (levels.slZone) {
-    const slZoneVN = levels.slZone.type === 'support' ? 'hỗ trợ' : 'kháng cự';
-    message += ` [${slZoneVN}]`;
-  }
-  message += '\n';
+  // === HEADER ===
+  const sideVN = side === 'LONG' ? 'LONG' : 'SHORT';
+  const sideEmoji = side === 'LONG' ? '🟢' : '🔴';
+  const setupName = getSetupNameVN(setup);
   
-  // TP1
-  message += `TP1:    ${formatNumber(levels.takeProfit1, 8)} (${formatNumber(levels.riskReward1, 1)}R)`;
-  if (levels.tpZones && levels.tpZones[0]) {
-    const tp1ZoneVN = levels.tpZones[0].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
-    message += ` [${tp1ZoneVN}]`;
+  message += `${sideEmoji} <b>${sideVN} | ${escapeHtml(symbol)} | ${escapeHtml(timeframe.toUpperCase())}</b>\n`;
+  message += `<b>${escapeHtml(setupName)}</b>\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  // === TRADE PLAN ===
+  message += `<b>📋 KẾ HOẠCH GIAO DỊCH</b>\n`;
+  
+  // Entry with percentage
+  const entry = levels.entry;
+  message += `Entry: <code>${formatNumber(entry, 8)}</code>\n`;
+  
+  // SL with percentage
+  const sl = levels.stopLoss;
+  const slPercent = calculatePercent(entry, sl);
+  message += `SL: <code>${formatNumber(sl, 8)}</code>`;
+  if (slPercent) {
+    message += ` (${formatNumber(Math.abs(slPercent), 2)}%)`;
   }
-  message += '\n';
+  message += `\n`;
+  
+  // TP1 with RR and percentage
+  const tp1 = levels.takeProfit1;
+  const tp1Percent = calculatePercent(entry, tp1);
+  const rr1 = levels.riskReward1;
+  message += `TP1: <code>${formatNumber(tp1, 8)}</code>`;
+  if (tp1Percent) {
+    message += ` (${formatNumber(Math.abs(tp1Percent), 2)}%)`;
+  }
+  if (rr1) {
+    message += ` [${formatNumber(rr1, 1)}R]`;
+  }
+  message += `\n`;
   
   // TP2 (if available)
   if (levels.takeProfit2) {
-    message += `TP2:    ${formatNumber(levels.takeProfit2, 8)} (${formatNumber(levels.riskReward2, 1)}R)`;
-    if (levels.tpZones && levels.tpZones[1]) {
-      const tp2ZoneVN = levels.tpZones[1].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
-      message += ` [${tp2ZoneVN}]`;
+    const tp2 = levels.takeProfit2;
+    const tp2Percent = calculatePercent(entry, tp2);
+    const rr2 = levels.riskReward2;
+    message += `TP2: <code>${formatNumber(tp2, 8)}</code>`;
+    if (tp2Percent) {
+      message += ` (${formatNumber(Math.abs(tp2Percent), 2)}%)`;
     }
-    message += '\n';
+    if (rr2) {
+      message += ` [${formatNumber(rr2, 1)}R]`;
+    }
+    message += `\n`;
   }
   
-  // Add TP3 if available from tpZones
+  // TP3 (if available from tpZones)
   if (levels.tpZones && levels.tpZones[2]) {
     const tp3 = levels.tpZones[2].center;
-    const tp3Distance = Math.abs(tp3 - levels.entry);
-    const risk = Math.abs(levels.entry - levels.stopLoss);
+    const tp3Percent = calculatePercent(entry, tp3);
+    const risk = Math.abs(entry - sl);
     
-    // Validate risk is not zero to avoid division by zero
     if (risk > 0) {
+      const tp3Distance = Math.abs(tp3 - entry);
       const tp3RR = tp3Distance / risk;
-      const tp3ZoneVN = levels.tpZones[2].type === 'resistance' ? 'kháng cự' : 'hỗ trợ';
-      message += `TP3:    ${formatNumber(tp3, 8)} (${formatNumber(tp3RR, 1)}R) [${tp3ZoneVN}]\n`;
+      message += `TP3: <code>${formatNumber(tp3, 8)}</code>`;
+      if (tp3Percent) {
+        message += ` (${formatNumber(Math.abs(tp3Percent), 2)}%)`;
+      }
+      message += ` [${formatNumber(tp3RR, 1)}R]`;
+      message += `\n`;
     }
   }
   
-  message += '```\n\n';
+  message += `\n`;
 
-  // === ĐỘ TIN CẬY ===
-  message += `*━━━ ĐỘ TIN CẬY ━━━*\n`;
-  message += `${getConfidenceLevel(score)} *${score}/100 điểm*\n\n`;
+  // === RR/WR/EV LINE ===
+  const mainRR = levels.riskReward1 || '--';
+  const wr = levels.winRate ? `${formatNumber(levels.winRate, 0)}%` : '--';
+  const ev = levels.expectedValue ? formatNumber(levels.expectedValue, 2) : '--';
   
-  // HTF Analysis
-  if (htfBias && htfBias.bias !== 'neutral') {
-    const structures = htfBias.structures || {};
-    const d1VN = structures['1d'] === 'up' ? '🟢 Tăng' : structures['1d'] === 'down' ? '🔴 Giảm' : '⚪ Ngang';
-    const h4VN = structures['4h'] === 'up' ? '🟢 Tăng' : structures['4h'] === 'down' ? '🔴 Giảm' : '⚪ Ngang';
-    const alignIcon = htfBias.alignment ? '✅' : '⚠️';
-    message += `${alignIcon} *Khung lớn:* 1D ${d1VN} \\| 4H ${h4VN}\n\n`;
-  }
+  message += `<b>Risk/Reward:</b> ${mainRR}R | <b>WR:</b> ${wr} | <b>EV:</b> ${ev}\n\n`;
 
-  // === TẠI SAO VÀO KÈO ===
-  message += `*━━━ TẠI SAO VÀO KÈO ━━━*\n`;
+  // === TRAILING NOTE (if score is displayed separately) ===
+  message += `<b>Điểm tín hiệu:</b> ${score}/100\n\n`;
+
+  // === REASONS SECTION ===
+  message += `<b>💡 Lý do vào kèo</b>\n`;
   const reasons = generateTradeReasons(signal, setup, htfBias, divergence, volumeRatio);
-  for (const reason of reasons) {
-    message += `${escapeMarkdown(reason)}\n`;
+  
+  if (reasons.length > 0) {
+    for (const reason of reasons) {
+      message += `✅ ${escapeHtml(reason)}\n`;
+    }
+  } else {
+    message += `✅ Phân tích Price Action tổng hợp\n`;
   }
-  message += '\n';
+  message += `\n`;
 
-  // Timestamp and footer
+  // === FOOTER ===
   const date = new Date(timestamp);
   const timezone = process.env.TELEGRAM_TIMEZONE || 'Asia/Ho_Chi_Minh';
-  const timeStr = date.toLocaleString('vi-VN', { 
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit', 
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  message += `🕐 ${escapeMarkdown(timeStr)}\n`;
-  message += `_${escapeMarkdown(sourceName)}_\n`;
+  
+  // Format: HH:mm DD/MM/YYYY
+  const hours = date.toLocaleString('en-US', { timeZone: timezone, hour: '2-digit', hour12: false });
+  const minutes = date.toLocaleString('en-US', { timeZone: timezone, minute: '2-digit' });
+  const day = date.toLocaleString('en-US', { timeZone: timezone, day: '2-digit' });
+  const month = date.toLocaleString('en-US', { timeZone: timezone, month: '2-digit' });
+  const year = date.toLocaleString('en-US', { timeZone: timezone, year: 'numeric' });
+  
+  const timeStr = `${hours}:${minutes} ${day}/${month}/${year}`;
+  
+  message += `━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `🕐 ${timeStr}\n`;
+  message += `📱 ${escapeHtml(sourceText)}`;
 
   return message;
 }
@@ -253,7 +299,10 @@ function formatSimpleMessage(signal) {
 module.exports = {
   formatSignalMessage,
   formatSimpleMessage,
-  escapeMarkdown,
+  escapeHtml,
   generateTradeReasons,
-  getConfidenceLevel
+  getSetupNameVN,
+  translatePattern,
+  calculatePercent,
+  formatNumber
 };
