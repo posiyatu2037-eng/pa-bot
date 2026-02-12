@@ -45,15 +45,14 @@ async function sendSignal(signal) {
     console.log('\n' + '='.repeat(60));
     console.log('[Telegram] DRY_RUN - Would send message:');
     console.log('='.repeat(60));
-    // Log a version without escaping for readability
-    console.log(message.replace(/\\/g, ''));
+    console.log(message);
     console.log('='.repeat(60) + '\n');
     return true;
   }
 
   try {
     await bot.sendMessage(chatId, message, {
-      parse_mode: 'MarkdownV2',
+      parse_mode: 'HTML',
       disable_web_page_preview: true
     });
 
